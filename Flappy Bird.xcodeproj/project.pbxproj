@@ -427,7 +427,7 @@
 				CODE_SIGN_ENTITLEMENTS = "Flappy Bird/Flappy Bird.entitlements";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = GR3NL679U6;
+				DEVELOPMENT_TEAM = B326E26U8Q;
 				ENABLE_BITCODE = NO;
 				INFOPLIST_FILE = "Flappy Bird/Info.plist";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.arcade-games";
@@ -441,7 +441,7 @@
 					"$(PROJECT_DIR)",
 				);
 				MARKETING_VERSION = 4.5;
-				PRODUCT_BUNDLE_IDENTIFIER = org.brandonplank.flappybird;
+				PRODUCT_BUNDLE_IDENTIFIER = com.clarsen1010.flappybird;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
 				SUPPORTS_MACCATALYST = YES;
@@ -462,7 +462,7 @@
 				CODE_SIGN_ENTITLEMENTS = "Flappy Bird/Flappy Bird.entitlements";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = GR3NL679U6;
+				DEVELOPMENT_TEAM = B326E26U8Q;
 				ENABLE_BITCODE = NO;
 				INFOPLIST_FILE = "Flappy Bird/Info.plist";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.arcade-games";
@@ -476,7 +476,7 @@
 					"$(PROJECT_DIR)",
 				);
 				MARKETING_VERSION = 4.5;
-				PRODUCT_BUNDLE_IDENTIFIER = org.brandonplank.flappybird;
+				PRODUCT_BUNDLE_IDENTIFIER = com.clarsen1010.flappybird;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
 				SUPPORTS_MACCATALYST = YES;
