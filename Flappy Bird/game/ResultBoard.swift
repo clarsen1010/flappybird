@@ -122,16 +122,25 @@ public class ResultBoard: SKSpriteNode {
             new.removeAllActions()
             new.setScale(0)
 
-            var countUp: [SKAction] = []
-            for i in 0 ... finalScore {
-                if i != 0 {
-                    countUp.append(.wait(forDuration: 1.5 / Double(finalScore)))
+            // One 1.5s action rather than a wait per point: SpriteKit finishes
+            // at most one wait per frame, so big scores counted up for seconds.
+            let counter = CountUpProgress()
+            let countUp = SKAction.customAction(withDuration: 1.5) { [weak self] _, elapsed in
+                let i = min(finalScore, Int(CGFloat(finalScore) * elapsed / 1.5))
+                guard i != counter.shown else {
+                    return
                 }
-                countUp.append(.run { [weak self] in
-                    self?.showCount(i, of: finalScore, previousHighScore: previousHighScore)
-                })
+                counter.shown = i
+                self?.showCount(i, of: finalScore, previousHighScore: previousHighScore)
             }
-            run(.sequence(countUp), withKey: "countUp")
+            let finish = SKAction.run { [weak self] in
+                guard counter.shown != finalScore else {
+                    return
+                }
+                counter.shown = finalScore
+                self?.showCount(finalScore, of: finalScore, previousHighScore: previousHighScore)
+            }
+            run(.sequence([countUp, finish]), withKey: "countUp")
 
             // Medal is relative to the best score *before* this round (the
             // author's rule): platinum means you doubled your previous best.
@@ -165,6 +174,11 @@ public class ResultBoard: SKSpriteNode {
             }
         }
     }
+}
+
+/// Last value shown by the result-board count-up.
+private final class CountUpProgress {
+    var shown = -1
 }
 
 public extension ResultBoard {
