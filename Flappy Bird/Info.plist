@@ -31,19 +31,8 @@
 	</array>
 	<key>CFBundleVersion</key>
 	<string>$(CURRENT_PROJECT_VERSION)</string>
-	<key>GADApplicationIdentifier</key>
-	<string>ca-app-pub-5392102305642005~1545608351</string>
 	<key>LSApplicationCategoryType</key>
 	<string>public.app-category.arcade-games</string>
-	<key>LSApplicationQueriesSchemes</key>
-	<array>
-		<string>cydia</string>
-		<string>undecimus</string>
-		<string>sileo</string>
-		<string>zbra</string>
-		<string>filza</string>
-		<string>activator</string>
-	</array>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>UIAppFonts</key>
@@ -52,8 +41,6 @@
 		<string>fonts/outside.ttf</string>
 		<string>fonts/inside.ttf</string>
 	</array>
-	<key>UIApplicationExitsOnSuspend</key>
-	<true/>
     <key>UIApplicationSceneManifest</key>
     <dict>
         <key>UIApplicationSupportsMultipleScenes</key>
@@ -77,10 +64,6 @@
 	<string>LaunchScreen</string>
 	<key>UIMainStoryboardFile</key>
 	<string>Main</string>
-	<key>UIRequiredDeviceCapabilities</key>
-	<array>
-		<string>armv7</string>
-	</array>
 	<key>UIRequiresFullScreen</key>
 	<true/>
 	<key>UIStatusBarHidden</key>
