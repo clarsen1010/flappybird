@@ -1151,11 +1151,16 @@ final class GameScene: SKScene {
         pauseButton.removeAllActions()
         pauseButton.removeFromParent()
 
+        // Resume fades the overlay out before removing it, so it can still be
+        // attached if the app is interrupted right after resuming.
+        pauseOverlay.removeAllActions()
+        pauseOverlay.removeFromParent()
         pauseOverlay.setScale(1)
         pauseOverlay.alpha = 0.55
         addChild(pauseOverlay)
 
         resumeButton.removeAllActions()
+        resumeButton.removeFromParent()
         resumeButton.position = pauseButtonPosition()
         resumeButton.setScale(Constants.pauseButtonScale)
         addChild(resumeButton)
