@@ -1961,6 +1961,12 @@ final class GameScene: SKScene {
         resumeButton.removeFromParent()
         pauseOverlay.removeFromParent()
 
+        // Resume releases the tap lock from a pauseButton action; dying before
+        // it finishes removed the button, the action never ran, and every
+        // button stayed dead. Nothing is tappable until the results appear.
+        pauseButton.removeAllActions()
+        Self.hitButton = false
+
         isPausedByUser = false
         isPaused = false
 
