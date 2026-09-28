@@ -1265,7 +1265,7 @@ final class GameScene: SKScene {
             node: Self.settingsButton,
             firstScale: 1,
             firstScaleDuration: 0.1,
-            secondScale: 1.25,
+            secondScale: 1.2,
             secondScaleDuration: 0.1
         )
 
@@ -1282,7 +1282,7 @@ final class GameScene: SKScene {
                 node: resultNode,
                 firstScale: 1,
                 firstScaleDuration: 0.1,
-                secondScale: 1.2,
+                secondScale: 1.25,
                 secondScaleDuration: 0.1
             )
         } else {
@@ -1290,7 +1290,7 @@ final class GameScene: SKScene {
                 node: bird,
                 firstScale: 1,
                 firstScaleDuration: 0.1,
-                secondScale: 1.5,
+                secondScale: Constants.birdScale,
                 secondScaleDuration: 0.1
             )
 
