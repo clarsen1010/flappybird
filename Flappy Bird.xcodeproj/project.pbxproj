@@ -10,7 +10,6 @@
 		881336392700DF5A00252F12 /* Then.swift in Sources */ = {isa = PBXBuildFile; fileRef = 881336382700DF5A00252F12 /* Then.swift */; };
 		885785C52855532B00D55755 /* LoadingViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 885785C42855532B00D55755 /* LoadingViewController.swift */; };
 		885E0F9728559FC2008C70EF /* MKOutlinedLabelNode.swift in Sources */ = {isa = PBXBuildFile; fileRef = 885E0F9628559FC2008C70EF /* MKOutlinedLabelNode.swift */; };
-		886C3FC2270A1C9C00EF00C3 /* IQKeyboardManagerSwift in Frameworks */ = {isa = PBXBuildFile; productRef = 886C3FC1270A1C9C00EF00C3 /* IQKeyboardManagerSwift */; };
 		888D9F612707E5EA00F76EF3 /* Assets.swift in Sources */ = {isa = PBXBuildFile; fileRef = 888D9F602707E5EA00F76EF3 /* Assets.swift */; };
 		888E79CA27093B9700912CD9 /* CustomVisualEffectsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 888E79C927093B9700912CD9 /* CustomVisualEffectsView.swift */; };
 		CE55ED83305317960031EB43 /* SceneDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE55ED823053178C0031EB43 /* SceneDelegate.swift */; };
@@ -72,7 +71,6 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				886C3FC2270A1C9C00EF00C3 /* IQKeyboardManagerSwift in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -197,7 +195,6 @@
 			);
 			name = "Flappy Bird";
 			packageProductDependencies = (
-				886C3FC1270A1C9C00EF00C3 /* IQKeyboardManagerSwift */,
 			);
 			productName = "Flappy Bird";
 			productReference = DD2376FE245B73B500B570A3 /* Flappy Bird.app */;
@@ -229,7 +226,6 @@
 			);
 			mainGroup = DD2376F5245B73B500B570A3;
 			packageReferences = (
-				886C3FC0270A1C9C00EF00C3 /* XCRemoteSwiftPackageReference "IQKeyboardManager" */,
 			);
 			productRefGroup = DD2376FF245B73B500B570A3 /* Products */;
 			projectDirPath = "";
@@ -511,24 +507,7 @@
 		};
 /* End XCConfigurationList section */
 
-/* Begin XCRemoteSwiftPackageReference section */
-		886C3FC0270A1C9C00EF00C3 /* XCRemoteSwiftPackageReference "IQKeyboardManager" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/hackiftekhar/IQKeyboardManager";
-			requirement = {
-				kind = exactVersion;
-				version = 6.5.6;
-			};
-		};
-/* End XCRemoteSwiftPackageReference section */
 
-/* Begin XCSwiftPackageProductDependency section */
-		886C3FC1270A1C9C00EF00C3 /* IQKeyboardManagerSwift */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = 886C3FC0270A1C9C00EF00C3 /* XCRemoteSwiftPackageReference "IQKeyboardManager" */;
-			productName = IQKeyboardManagerSwift;
-		};
-/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = DD2376F6245B73B500B570A3 /* Project object */;
 }

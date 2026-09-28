@@ -11,7 +11,6 @@ import AVFoundation
 import Foundation
 import SpriteKit
 // import Sentry
-import IQKeyboardManagerSwift
 
 @main
 class AppDelegate: UIResponder, UIApplicationDelegate {
@@ -23,7 +22,6 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil
     ) -> Bool {
 
-        IQKeyboardManager.shared.enable = true
         // Assets.shared.preloadAssets()
 
         // Allow background audio playback
