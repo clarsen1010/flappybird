@@ -912,6 +912,10 @@ final class GameScene: SKScene {
     }
 
     private func handleGameTap() {
+        guard !isPaused, !isPausedByUser else {
+            return
+        }
+
         if isWaitingToStart {
             startGame()
             return
