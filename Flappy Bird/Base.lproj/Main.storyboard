@@ -366,7 +366,7 @@
                         </subviews>
                         <color key="backgroundColor" white="0.0" alpha="1" colorSpace="custom" customColorSpace="genericGamma22GrayColorSpace"/>
                         <constraints>
-                            <constraint firstAttribute="bottom" secondItem="VpX-kJ-Fns" secondAttribute="bottom" constant="13" id="20z-xU-gEj"/>
+                            <constraint firstItem="zkk-EW-iRu" firstAttribute="top" secondItem="VpX-kJ-Fns" secondAttribute="bottom" constant="13" id="20z-xU-gEj"/>
                             <constraint firstItem="VpX-kJ-Fns" firstAttribute="leading" secondItem="Izd-Jg-rs3" secondAttribute="leading" constant="57" id="38S-fa-7md"/>
                             <constraint firstAttribute="trailing" secondItem="VpX-kJ-Fns" secondAttribute="trailing" constant="57" id="40d-2l-Ym5"/>
                             <constraint firstItem="fBc-cL-M4R" firstAttribute="top" secondItem="TFk-Fb-8lx" secondAttribute="bottom" constant="8" symbolic="YES" id="76Q-6u-xCC"/>

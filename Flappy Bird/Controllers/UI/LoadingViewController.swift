@@ -13,6 +13,10 @@ import UIKit
 class LoadingViewController: UIViewController {
     @IBOutlet weak var progressLabel: UILabel!
     @IBOutlet weak var infoLabel: UILabel!
+
+    // Match the game screen; without this the status bar flashes during load.
+    override var prefersStatusBarHidden: Bool { true }
+
     override func viewDidLoad() {
         super.viewDidLoad()
         print("Showing launch screen")
