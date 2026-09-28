@@ -73,13 +73,13 @@ public class ResultBoard: SKSpriteNode {
         $0.position = CGPoint(x: frame.midX - 64, y: frame.midY - 6)
     }
     
-    private lazy var new = SKSpriteNode(texture: Assets.shared.sprites.textureNamed("new")).then {
+    private lazy var new = SKSpriteNode(texture: Assets.shared.sprites.textureNamed("new").then { $0.filteringMode = .nearest }).then {
         $0.zPosition = GamezPosition.resultText
         $0.position = CGPoint(x: frame.midX + 35, y: frame.midY - 6)
         $0.setScale(0)
     }
     
-    private lazy var sparkle = SKSpriteNode(texture: Assets.shared.sprites.textureNamed("sparkle")).then {
+    private lazy var sparkle = SKSpriteNode(texture: Assets.shared.sprites.textureNamed("sparkle").then { $0.filteringMode = .nearest }).then {
         $0.setScale(0)
         $0.zPosition = GamezPosition.resultText+1
     }
