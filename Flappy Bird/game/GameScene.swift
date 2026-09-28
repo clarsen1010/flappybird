@@ -1282,6 +1282,12 @@ final class GameScene: SKScene {
     }
 
     private func handleSettingsBack() {
+        guard !Self.hitButton else {
+            return
+        }
+
+        Self.hitButton = true
+
         playSound(swooshSound)
 
         settingsNode.backButton.setScale(0.8)
@@ -1303,6 +1309,7 @@ final class GameScene: SKScene {
             ]),
             completion: { [weak self] in
                 self?.hideSettings()
+                self?.unlockButtons()
             }
         )
     }
