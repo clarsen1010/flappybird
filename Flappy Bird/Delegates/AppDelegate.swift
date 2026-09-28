@@ -24,8 +24,12 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
 
         // Assets.shared.preloadAssets()
 
-        // Allow background audio playback
-        try? AVAudioSession.sharedInstance().setCategory(.ambient)
+        // Game sounds follow the volume slider, not the Silent switch (the
+        // owner's preference), and mix with any music or podcast playing.
+        try? AVAudioSession.sharedInstance().setCategory(
+            .playback,
+            options: [.mixWithOthers]
+        )
         try? AVAudioSession.sharedInstance().setActive(true)
 
         // SentrySDK.start { options in
