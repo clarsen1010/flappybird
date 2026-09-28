@@ -1985,7 +1985,7 @@ extension GameScene: SKPhysicsContactDelegate {
         }
 
         if !isShowingGameOver &&
-            bird.speed == 1 || bird.speed == 2 {
+            (bird.speed == 1 || bird.speed == 2) {
 
             if isContact(
                 contact,
