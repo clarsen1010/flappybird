@@ -18,7 +18,6 @@ class GameViewController: UIViewController {
     override var shouldAutorotate: Bool { false }
     override var prefersStatusBarHidden: Bool { true }
     override var canBecomeFirstResponder: Bool { true }
-    var preferredFramesPerSecond: Int { 120 }
     
     lazy var scene = GameScene(fileNamed: "GameScene")?.then {
         $0.scaleMode = .aspectFill
@@ -27,6 +26,9 @@ class GameViewController: UIViewController {
     override func loadView() {
         view = SKView().then {
             $0.ignoresSiblingOrder = true
+            // ProMotion: let SpriteKit render at up to 120 Hz (needs
+            // CADisableMinimumFrameDurationOnPhone in Info.plist).
+            $0.preferredFramesPerSecond = 120
             $0.showsFPS = false
             $0.showsNodeCount = false
         }

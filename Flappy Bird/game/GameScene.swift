@@ -279,6 +279,8 @@ final class GameScene: SKScene {
 
     private var isPausedByUser = false
 
+    private var lastUpdateTime: TimeInterval = 0
+
     private lazy var scoreLabelNode = SKLabelNode(
         fontNamed: "04b_19"
     ).then {
@@ -817,7 +819,7 @@ final class GameScene: SKScene {
         }
     }
 
-    private func updateBirdRotation() {
+    private func updateBirdRotation(deltaTime: TimeInterval) {
         guard let physicsBody = bird.physicsBody,
               physicsBody.isDynamic else {
             return
@@ -842,8 +844,12 @@ final class GameScene: SKScene {
             0.6
         )
 
+        // 0.15 per frame at 60 Hz, scaled by elapsed time so the tilt eases
+        // the same at 120 Hz instead of twice as fast.
+        let smoothing = 1 - pow(0.85, CGFloat(deltaTime * 60))
+
         bird.zRotation +=
-            (targetRotation - bird.zRotation) * 0.15
+            (targetRotation - bird.zRotation) * smoothing
 
         bird.speed = targetRotation < -0.7 ? 2 : 1
     }
@@ -851,11 +857,15 @@ final class GameScene: SKScene {
     // MARK: Game Loop
 
     override func update(_ currentTime: TimeInterval) {
+        let deltaTime = lastUpdateTime > 0 ?
+            min(currentTime - lastUpdateTime, 1.0 / 30.0) : 1.0 / 60.0
+        lastUpdateTime = currentTime
+
         guard !hasHitGround else {
             return
         }
 
-        updateBirdRotation()
+        updateBirdRotation(deltaTime: deltaTime)
     }
 
     // MARK: Input
