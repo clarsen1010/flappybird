@@ -193,6 +193,7 @@ final class GameScene: SKScene {
 
     private let impactFeedback = UIImpactFeedbackGenerator()
     private let notificationFeedback = UINotificationFeedbackGenerator()
+    private let flapFeedback = UIImpactFeedbackGenerator(style: .light)
 
     // MARK: Sounds
 
@@ -817,6 +818,10 @@ final class GameScene: SKScene {
         if playSounds {
             run(flapSound)
         }
+
+        if haptics {
+            flapFeedback.impactOccurred()
+        }
     }
 
     private func updateBirdRotation(deltaTime: TimeInterval) {
@@ -964,6 +969,10 @@ final class GameScene: SKScene {
         pipes.setScale(1)
 
         bird.physicsBody?.isDynamic = true
+
+        if haptics {
+            flapFeedback.prepare()
+        }
 
         flapBird()
     }
