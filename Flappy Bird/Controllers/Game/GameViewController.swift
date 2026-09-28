@@ -47,7 +47,7 @@ class GameViewController: UIViewController {
             guard let key = press.key else { continue }
             if #available(iOS 13.4, macCatalyst 13.4, *) {
                 if key.keyCode == UIKeyboardHIDUsage.keyboardSpacebar { // Space
-                    GameScene.shared.keyboardFlapp()
+                    scene?.keyboardFlapp()
                     didHandleEvent = true
                 }
             } else {

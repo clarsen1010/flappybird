@@ -142,21 +142,9 @@ final class GameScene: SKScene {
         }
     }
 
-    // MARK: Shared State
-
-    static let shared = GameScene()
-    
     // MARK: Pipe seed
     private var pipeSeed: UInt64 = 123456789
     private var pipeRandom = SeededRandomNumberGenerator(seed: UInt64(arc4random()))
-
-    static var width: CGFloat {
-        shared.width
-    }
-
-    static var height: CGFloat {
-        shared.height
-    }
 
     // These remain static because other project files may reference them.
     static let settingsButtonTexture =
