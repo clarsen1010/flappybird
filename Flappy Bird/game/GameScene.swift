@@ -94,6 +94,8 @@ final class GameScene: SKScene {
         static let pipeScale: CGFloat = 2
         static let birdScale: CGFloat = 1.25
 
+        static let menuButtonSpacing: CGFloat = 90
+
         static let idleFloatDistance: CGFloat = 35
         static let idleFloatDuration: TimeInterval = 1
 
@@ -150,8 +152,8 @@ final class GameScene: SKScene {
     static let settingsButtonTexture =
         Assets.shared.sprites.textureNamed("settings")
 
-    static let githubButtonTexture =
-        Assets.shared.sprites.textureNamed("github")
+    static let blankButtonTexture =
+        Assets.shared.sprites.textureNamed("blank-button")
     
     static let smallPlayButtonTexture =
         Assets.shared.sprites.textureNamed("smallresume")
@@ -282,6 +284,10 @@ final class GameScene: SKScene {
     private lazy var gameOverNode = makeGameOverNode()
     private lazy var resultNode = makeResultNode()
     private lazy var settingsNode = makeSettingsNode()
+    private lazy var bestRunsNode = makeBestRunsNode()
+
+    /// "random" or one of pickableBirds; chosen with the bird-picker button.
+    private var birdChoice = "random"
 
     private lazy var playButton = makePlayButton()
     private lazy var pauseButton = makePauseButton()
@@ -326,25 +332,58 @@ final class GameScene: SKScene {
         ).then {
             $0.name = "settings"
             $0.setScale(1.2)
-            $0.position = CGPoint(
-                x: ScreenData.shared.width / 2 + 45,
-                y: ScreenData.shared.height / 2 - 25
-            )
         }
 
-    private static var githubButton =
+    /// Taps resolve to the deepest node, so each icon carries its
+    /// button's name.
+    private static let birdPickerIcon =
         SKSpriteNode(
-            texture: githubButtonTexture.then {
+            texture: Assets.shared.sprites.textureNamed("yellow-bird-1").then {
                 $0.filteringMode = .nearest
             }
         ).then {
-            $0.name = "github"
+            $0.name = "birdPicker"
+            $0.setScale(0.9)
+            $0.position = CGPoint(x: 0, y: 1)
+            $0.zPosition = 1
+        }
+
+    private static var birdPickerButton =
+        SKSpriteNode(
+            texture: blankButtonTexture.then {
+                $0.filteringMode = .nearest
+            }
+        ).then {
+            $0.name = "birdPicker"
             $0.setScale(1.2)
-            $0.position = CGPoint(
-                x: ScreenData.shared.width / 2 - 45,
-                y: ScreenData.shared.height / 2 - 25
+            $0.addChild(birdPickerIcon)
+        }
+
+    private static var bestRunsButton =
+        SKSpriteNode(
+            texture: blankButtonTexture.then {
+                $0.filteringMode = .nearest
+            }
+        ).then {
+            $0.name = "bestRuns"
+            $0.setScale(1.2)
+            $0.addChild(
+                SKSpriteNode(
+                    texture: Assets.shared.sprites.textureNamed("gold-medal").then {
+                        $0.filteringMode = .nearest
+                    }
+                ).then {
+                    $0.name = "bestRuns"
+                    $0.setScale(0.5)
+                    $0.position = CGPoint(x: 0, y: 1)
+                    $0.zPosition = 1
+                }
             )
         }
+
+    private static let pickableBirds = [
+        "yellow", "red", "blue", "green", "peach", "purple", "kup"
+    ]
 
     // MARK: Idle Animation
 
@@ -406,7 +445,10 @@ final class GameScene: SKScene {
         addChild(bird)
         addChild(ground)
 
-        addChild(Self.githubButton)
+        placeMenuButtons()
+        refreshBirdPickerIcon()
+        addChild(Self.birdPickerButton)
+        addChild(Self.bestRunsButton)
         addChild(Self.settingsButton)
         addChild(playButton)
         pauseButton.removeFromParent()
@@ -454,6 +496,11 @@ final class GameScene: SKScene {
             key: "adaptiveBackground",
             defaultValue: false
         )
+
+        if let choice = UserDefaults.standard.string(forKey: "birdChoice"),
+           Self.pickableBirds.contains(choice) {
+            birdChoice = choice
+        }
 
         updateSettingsUI()
     }
@@ -637,6 +684,17 @@ final class GameScene: SKScene {
         }
     }
 
+    private func makeBestRunsNode() -> BestRunsPanel {
+        BestRunsPanel().then {
+            $0.setScale(1.2)
+            $0.zPosition = GameZPosition.resultText + 4
+            $0.position = CGPoint(
+                x: width / 2,
+                y: height / 2 + 15
+            )
+        }
+    }
+
     private func makePlayButton() -> SKSpriteNode {
         SKSpriteNode(
             texture: playButtonTexture.then {
@@ -739,7 +797,9 @@ final class GameScene: SKScene {
         for index in 0...2 {
             let color: String
 
-            if newBirds {
+            if birdChoice != "random" {
+                color = birdChoice
+            } else if newBirds {
                 switch randomValue {
                 case ..<0.161:
                     color = "yellow"
@@ -923,8 +983,14 @@ final class GameScene: SKScene {
         case "settings":
             handleSettingsTap()
 
-        case "github":
-            handleGitHubTap()
+        case "birdPicker":
+            handleBirdPickerTap()
+
+        case "bestRuns":
+            handleBestRunsTap()
+
+        case "bestRunsBack":
+            handleBestRunsBack()
 
         case "toggleSounds":
             handleSoundToggle()
@@ -1173,8 +1239,9 @@ final class GameScene: SKScene {
             updateBirdTextures()
         }
 
+        Self.birdPickerButton.removeFromParent()
+        Self.bestRunsButton.removeFromParent()
         Self.settingsButton.removeFromParent()
-        Self.githubButton.removeFromParent()
         playButton.removeFromParent()
 
         isWaitingToStart = true
@@ -1235,47 +1302,7 @@ final class GameScene: SKScene {
     }
 
     private func showSettings() {
-        scaleTwice(
-            node: Self.settingsButton,
-            firstScale: 1,
-            firstScaleDuration: 0.1,
-            secondScale: 0,
-            secondScaleDuration: 0.1
-        )
-
-        scaleTwice(
-            node: playButton,
-            firstScale: 1,
-            firstScaleDuration: 0.1,
-            secondScale: 0,
-            secondScaleDuration: 0.1
-        )
-
-        if isGameOver {
-            scaleTwice(
-                node: resultNode,
-                firstScale: 1,
-                firstScaleDuration: 0.1,
-                secondScale: 0,
-                secondScaleDuration: 0.1
-            )
-        } else {
-            scaleTwice(
-                node: bird,
-                firstScale: 1,
-                firstScaleDuration: 0.1,
-                secondScale: 0,
-                secondScaleDuration: 0.1
-            )
-
-            scaleTwice(
-                node: Self.githubButton,
-                firstScale: 1,
-                firstScaleDuration: 0.1,
-                secondScale: 0,
-                secondScaleDuration: 0.1
-            )
-        }
+        hideMenu()
 
         settingsNode.setScale(0)
         addChild(settingsNode)
@@ -1335,47 +1362,232 @@ final class GameScene: SKScene {
 
         settingsNode.removeFromParent()
 
-        scaleTwice(
-            node: Self.settingsButton,
-            firstScale: 1,
-            firstScaleDuration: 0.1,
-            secondScale: 1.2,
-            secondScaleDuration: 0.1
-        )
+        restoreMenu()
+    }
 
-        scaleTwice(
-            node: playButton,
-            firstScale: 1,
-            firstScaleDuration: 0.1,
-            secondScale: 1.2,
-            secondScaleDuration: 0.1
-        )
+    // MARK: Menu Row
 
-        if isGameOver {
+    private var menuButtons: [SKSpriteNode] {
+        [Self.birdPickerButton, Self.bestRunsButton, Self.settingsButton]
+    }
+
+    /// Bird picker, best runs and settings sit in one row above Play on both
+    /// the title and game-over screens.
+    private func placeMenuButtons() {
+        let y = height / 2 - 25
+
+        for (index, button) in menuButtons.enumerated() {
+            button.position = CGPoint(
+                x: width / 2 + CGFloat(index - 1) * Constants.menuButtonSpacing,
+                y: y
+            )
+        }
+    }
+
+    /// Scales the menu away while a panel (Settings, Best Runs) is open.
+    private func hideMenu() {
+        for node in menuButtons + [playButton, isGameOver ? resultNode : bird] {
             scaleTwice(
-                node: resultNode,
+                node: node,
                 firstScale: 1,
                 firstScaleDuration: 0.1,
-                secondScale: 1.25,
+                secondScale: 0,
                 secondScaleDuration: 0.1
             )
-        } else {
-            scaleTwice(
-                node: bird,
-                firstScale: 1,
-                firstScaleDuration: 0.1,
-                secondScale: Constants.birdScale,
-                secondScaleDuration: 0.1
-            )
+        }
+    }
 
+    private func restoreMenu() {
+        for node in menuButtons + [playButton] {
             scaleTwice(
-                node: Self.githubButton,
+                node: node,
                 firstScale: 1,
                 firstScaleDuration: 0.1,
                 secondScale: 1.2,
                 secondScaleDuration: 0.1
             )
         }
+
+        scaleTwice(
+            node: isGameOver ? resultNode : bird,
+            firstScale: 1,
+            firstScaleDuration: 0.1,
+            secondScale: isGameOver ? 1.25 : Constants.birdScale,
+            secondScaleDuration: 0.1
+        )
+    }
+
+    // MARK: Bird Picker
+
+    private func handleBirdPickerTap() {
+        guard !Self.hitButton else {
+            return
+        }
+
+        Self.hitButton = true
+
+        playSound(swooshSound)
+
+        if haptics {
+            impactFeedback.impactOccurred()
+        }
+
+        let options = ["random"] + Self.pickableBirds
+        let next = ((options.firstIndex(of: birdChoice) ?? 0) + 1) % options.count
+        birdChoice = options[next]
+        UserDefaults.standard.set(birdChoice, forKey: "birdChoice")
+
+        refreshBirdPickerIcon()
+
+        // The dead bird on the game-over screen keeps its look; the pick
+        // applies from the next round.
+        if !isGameOver {
+            updateBirdTextures()
+        }
+
+        Self.birdPickerButton.setScale(1.15)
+
+        Self.birdPickerButton.run(
+            .sequence([
+                .wait(forDuration: 0.1),
+                .scale(to: 1.2, duration: 0)
+            ]),
+            completion: {
+                Self.hitButton = false
+            }
+        )
+    }
+
+    /// Flaps the chosen bird on the button; "random" flaps through the pool
+    /// the next round will pick from.
+    private func refreshBirdPickerIcon() {
+        let colors: [String]
+
+        if birdChoice != "random" {
+            colors = [birdChoice]
+        } else {
+            colors = newBirds ? Self.pickableBirds : ["yellow", "red", "blue"]
+        }
+
+        let frames = colors.flatMap { color in
+            [1, 2, 3, 2].map { frame in
+                Assets.shared.sprites.textureNamed("\(color)-bird-\(frame)").then {
+                    $0.filteringMode = .nearest
+                }
+            }
+        }
+
+        let icon = Self.birdPickerIcon
+        icon.removeAction(forKey: "flap")
+        icon.texture = frames[0]
+
+        icon.run(
+            .repeatForever(
+                .animate(
+                    with: frames,
+                    timePerFrame: Constants.animationFrameDuration
+                )
+            ),
+            withKey: "flap"
+        )
+    }
+
+    // MARK: Best Runs
+
+    private func handleBestRunsTap() {
+        guard !Self.hitButton else {
+            return
+        }
+
+        Self.hitButton = true
+
+        playSound(swooshSound)
+
+        Self.bestRunsButton.setScale(1.15)
+
+        run(
+            SKAction.sequence([
+                .wait(forDuration: 0.1),
+                .run { [weak self] in
+                    guard let self else { return }
+
+                    if self.haptics {
+                        self.impactFeedback.impactOccurred()
+                    }
+                },
+                .run {
+                    Self.bestRunsButton.setScale(1.2)
+                },
+                .wait(forDuration: 0.1)
+            ]),
+            completion: { [weak self] in
+                self?.showBestRuns()
+            }
+        )
+    }
+
+    private func showBestRuns() {
+        hideMenu()
+
+        bestRunsNode.reload()
+        bestRunsNode.setScale(0)
+        addChild(bestRunsNode)
+
+        scaleTwice(
+            node: bestRunsNode,
+            firstScale: 1,
+            firstScaleDuration: 0.1,
+            secondScale: 1.2,
+            secondScaleDuration: 0.1
+        )
+
+        unlockButtons()
+    }
+
+    private func handleBestRunsBack() {
+        guard !Self.hitButton else {
+            return
+        }
+
+        Self.hitButton = true
+
+        playSound(swooshSound)
+
+        bestRunsNode.backButton.setScale(0.8)
+
+        run(
+            SKAction.sequence([
+                .wait(forDuration: 0.1),
+                .run { [weak self] in
+                    guard let self else { return }
+
+                    if self.haptics {
+                        self.impactFeedback.impactOccurred()
+                    }
+
+                    self.bestRunsNode.backButton.setScale(1)
+                },
+                .wait(forDuration: 0.1)
+            ]),
+            completion: { [weak self] in
+                self?.hideBestRuns()
+                self?.unlockButtons()
+            }
+        )
+    }
+
+    private func hideBestRuns() {
+        scaleTwice(
+            node: bestRunsNode,
+            firstScale: 1,
+            firstScaleDuration: 0.1,
+            secondScale: 0,
+            secondScaleDuration: 0.1
+        )
+
+        bestRunsNode.removeFromParent()
+
+        restoreMenu()
     }
 
     private func unlockButtons() {
@@ -1459,6 +1671,8 @@ final class GameScene: SKScene {
             control: settingsNode.newBirdsToggle,
             y: SettingsPositions.newBirdsToggleY
         )
+
+        refreshBirdPickerIcon()
     }
 
     private func handleHapticsToggle() {
@@ -1491,49 +1705,6 @@ final class GameScene: SKScene {
         )
 
         updateSky()
-    }
-
-    // MARK: GitHub
-
-    private func handleGitHubTap() {
-        guard !Self.hitButton else {
-            return
-        }
-
-        Self.hitButton = true
-
-        playSound(swooshSound)
-
-        Self.githubButton.setScale(1.15)
-
-        run(
-            .sequence([
-                .wait(forDuration: 0.1),
-                .run { [weak self] in
-                    guard let self else { return }
-
-                    if self.haptics {
-                        self.impactFeedback.impactOccurred()
-                    }
-                },
-                .run {
-                    Self.githubButton.setScale(1.2)
-                },
-                .wait(forDuration: 0.9)
-            ]),
-            completion: {
-                guard let url = URL(
-                    string: "https://www.github.com/crypticplank/flappybird"
-                ) else {
-                    Self.hitButton = false
-                    return
-                }
-
-                UIApplication.shared.open(url)
-
-                Self.hitButton = false
-            }
-        )
     }
 
     // MARK: Ground
@@ -1858,6 +2029,9 @@ final class GameScene: SKScene {
             return
         }
 
+        // Before resultNode.score saves a new best (see BestRuns.record).
+        BestRuns.record(score)
+
         resultNode.setScale(0)
         resultNode.score = score
         addChild(resultNode)
@@ -1870,21 +2044,21 @@ final class GameScene: SKScene {
             secondScaleDuration: 0.1
         )
 
-        Self.settingsButton.position = CGPoint(
-            x: ScreenData.shared.width / 2,
-            y: ScreenData.shared.height / 2 - 25
-        )
+        placeMenuButtons()
 
-        Self.settingsButton.setScale(0)
-        addChild(Self.settingsButton)
+        for button in menuButtons {
+            button.removeFromParent()
+            button.setScale(0)
+            addChild(button)
 
-        scaleTwice(
-            node: Self.settingsButton,
-            firstScale: 1,
-            firstScaleDuration: 0.1,
-            secondScale: 1.2,
-            secondScaleDuration: 0.1
-        )
+            scaleTwice(
+                node: button,
+                firstScale: 1,
+                firstScaleDuration: 0.1,
+                secondScale: 1.2,
+                secondScaleDuration: 0.1
+            )
+        }
 
         playButton.setScale(0)
         addChild(playButton)
