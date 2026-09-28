@@ -362,6 +362,20 @@ final class GameScene: SKScene {
     // MARK: Scene Setup
 
     override func didMove(to view: SKView) {
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(applicationWillResignActive),
+            name: UIApplication.willResignActiveNotification,
+            object: nil
+        )
+
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(applicationDidBecomeActive),
+            name: UIApplication.didBecomeActiveNotification,
+            object: nil
+        )
+
         configureSettings()
         configureScene()
         configurePhysics()
@@ -1037,7 +1051,7 @@ final class GameScene: SKScene {
         )
     }
     
-    private func handlePauseTap() {
+    private func handlePauseTap(withFeedback feedback: Bool = true) {
         guard !Self.hitButton,
               !isWaitingToStart,
               !isGameOver,
@@ -1049,10 +1063,12 @@ final class GameScene: SKScene {
         Self.hitButton = true
         isPausedByUser = true
 
-        playSound(swooshSound)
+        if feedback {
+            playSound(swooshSound)
 
-        if haptics {
-            impactFeedback.impactOccurred()
+            if haptics {
+                impactFeedback.impactOccurred()
+            }
         }
 
         pauseButton.removeAllActions()
@@ -1068,6 +1084,28 @@ final class GameScene: SKScene {
         addChild(resumeButton)
 
         isPaused = true
+    }
+
+    /// Control Center, a call or leaving the app mid-round pauses the game
+    /// instead of letting the bird fall.
+    @objc private func applicationWillResignActive() {
+        guard !isWaitingToStart,
+              !isGameOver,
+              !isShowingGameOver,
+              !isPausedByUser else {
+            return
+        }
+
+        Self.hitButton = false
+        handlePauseTap(withFeedback: false)
+    }
+
+    /// SpriteKit unpauses the scene when the app becomes active again, which
+    /// would let the bird fall behind the pause overlay; keep it paused.
+    @objc private func applicationDidBecomeActive() {
+        if isPausedByUser {
+            isPaused = true
+        }
     }
 
     private func handleResumeTap() {
