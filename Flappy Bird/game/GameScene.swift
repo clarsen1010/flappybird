@@ -1424,16 +1424,16 @@ final class GameScene: SKScene {
             impactFeedback.impactOccurred()
         }
 
-        if !playSounds {
-            playSound(swooshSound)
-        }
-
         toggle(
             value: &playSounds,
             key: "playSounds",
             control: settingsNode.soundToggle,
             y: SettingsPositions.soundToggleY
         )
+
+        // playSound() is a no-op while sound is off, so this only swooshes
+        // when sound was just turned on.
+        playSound(swooshSound)
     }
 
     private func handleNewBirdsToggle() {
