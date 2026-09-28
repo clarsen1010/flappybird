@@ -153,12 +153,13 @@ class BestRunsPanel: SKNode {
     }
 
     /// Salmon label with the pale drop shadow used by the Settings panel art.
+    /// The SKView ignores sibling order, so the layers get explicit z.
     private func makeLabel(_ text: String, size: CGFloat, x: CGFloat, y: CGFloat) -> SKNode {
         let node = SKNode()
         node.position = CGPoint(x: x, y: y)
         node.zPosition = 1
 
-        for (color, offset) in [(Self.labelShadowColor, CGPoint(x: 0, y: -1)), (Self.labelColor, .zero)] {
+        for (index, (color, offset)) in [(Self.labelShadowColor, CGPoint(x: 0, y: -1)), (Self.labelColor, .zero)].enumerated() {
             node.addChild(SKLabelNode(fontNamed: "KongtextRegular").then {
                 $0.text = text
                 $0.fontSize = size
@@ -166,24 +167,37 @@ class BestRunsPanel: SKNode {
                 $0.verticalAlignmentMode = .center
                 $0.horizontalAlignmentMode = .center
                 $0.position = offset
+                $0.zPosition = CGFloat(index)
             })
         }
 
         return node
     }
 
-    /// White score with a black outline, like the in-game score.
-    /// MKOutlinedLabelNode draws its outline from the baseline, so it keeps
-    /// baseline alignment and is nudged down to sit on the row's center.
+    /// Score digits in the game's own style (same fonts as the result board):
+    /// white "inside" fill under the black "04b_19" outline.
     private func makeScoreLabel(_ text: String, x: CGFloat, y: CGFloat) -> SKNode {
-        MKOutlinedLabelNode(fontNamed: "KongtextRegular", fontSize: 12).then {
-            $0.fontColor = UIColor.white
-            $0.borderColor = UIColor.black
-            $0.borderWidth = 1
-            $0.borderOffset = CGPoint(x: 0, y: 0)
-            $0.position = CGPoint(x: x, y: y - 5)
+        let node = SKNode()
+        node.position = CGPoint(x: x, y: y)
+        node.zPosition = 1
+
+        node.addChild(SKLabelNode(fontNamed: "inside").then {
+            $0.text = text
+            $0.fontSize = 16
+            $0.fontColor = .white
+            $0.verticalAlignmentMode = .center
+            $0.position = CGPoint(x: -0.49, y: 0)
+            $0.zPosition = 0
+        })
+
+        node.addChild(SKLabelNode(fontNamed: "04b_19").then {
+            $0.text = text
+            $0.fontSize = 16
+            $0.fontColor = .black
+            $0.verticalAlignmentMode = .center
             $0.zPosition = 1
-            $0.outlinedText = text
-        }
+        })
+
+        return node
     }
 }
