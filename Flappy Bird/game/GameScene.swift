@@ -1042,6 +1042,7 @@ final class GameScene: SKScene {
         removeStartUI()
 
         pauseButton.removeAllActions()
+        pauseButton.removeFromParent()
         pauseButton.position = pauseButtonPosition()
         pauseButton.setScale(0)
         addChild(pauseButton)
@@ -1165,7 +1166,10 @@ final class GameScene: SKScene {
     /// Control Center, a call or leaving the app mid-round pauses the game
     /// instead of letting the bird fall.
     @objc private func applicationWillResignActive() {
-        guard !isWaitingToStart,
+        // The pause button only exists during a live round; the title screen
+        // has all the round flags below false too.
+        guard pauseButton.parent != nil,
+              !isWaitingToStart,
               !isGameOver,
               !isShowingGameOver,
               !isPausedByUser else {
@@ -1209,6 +1213,7 @@ final class GameScene: SKScene {
         )
 
         pauseButton.removeAllActions()
+        pauseButton.removeFromParent()
         pauseButton.position = pauseButtonPosition()
         pauseButton.setScale(0)
         addChild(pauseButton)
