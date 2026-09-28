@@ -945,6 +945,12 @@ final class GameScene: SKScene {
             .scale(to: Constants.pauseButtonScale, duration: 0.1)
         )
 
+        // Pipes keep spawning (hidden) while waiting on Get Ready; clear them
+        // and restart the spawner so the first pipe enters from the right edge
+        // instead of popping in on top of the bird.
+        pipes.removeAllChildren()
+        removeAction(forKey: "pipeSpawner")
+        startPipeSpawner()
         pipes.setScale(1)
 
         bird.physicsBody?.isDynamic = true
