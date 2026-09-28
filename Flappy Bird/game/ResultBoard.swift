@@ -100,47 +100,68 @@ public class ResultBoard: SKSpriteNode {
             #if DEBUG
             print(timeTook)
             #endif
-            if canShowScore {
-                
-                DispatchQueue.global().async {
-                    let previousHighScore = ResultBoard.bestScore()
-                    if(self.score > ResultBoard.bestScore()){
-                        ResultBoard.setBestScore(self.score)
-                    }
-                    
-                    self.currentScore.text = "0"
-                    self.currentScoreInside.text = "0"
-                    self.new.setScale(0)
-                    
-                    for i in 0 ... (self.score) {
-                        if (self.score > 0) && (i != 0) {
-                            usleep(UInt32(1.5/Double(self.score) * 1000000.0))
-                        }
-                        self.currentScore.text = "\(i)"
-                        self.currentScoreInside.text = "\(i)"
-                        if (i) > previousHighScore {
-                            self.bestScore.text = "\(i)"
-                            self.bestScoreInside.text = "\(i)"
-                            if (i == self.score) {
-                                self.new.run(SKAction.sequence([
-                                    SKAction.scale(to: 0.7, duration: 0.05),
-                                    SKAction.scale(to: 1.0, duration: 0.05)
-                                ]))
-                            }
-                        }
-                    }
-                }
+            guard canShowScore else {
+                return
             }
-            
-            if canShowScore {
-                let medalTexture = score == 0 ? SKTexture() : (score < (ResultBoard.bestScore() / 2) ? (Assets.shared.sprites.textureNamed("copper-medal")) : (score < ResultBoard.bestScore() ?(SKTexture(imageNamed: "silver-medal")) : (score < (ResultBoard.bestScore() * 2) ? (Assets.shared.sprites.textureNamed("gold-medal")) : (Assets.shared.sprites.textureNamed("platinum-medal")))))
-                medal.run(SKAction.setTexture(medalTexture, resize: true))
-                
-                sparkle.setScale(0)
-                sparkle.removeAllActions()
-                if(score > 0){
-                    sparkle.run(sparkleAction)
+
+            // Everything here touches SpriteKit nodes, so it stays on the main
+            // thread; the count-up runs as SKActions instead of a background
+            // thread + usleep. The best score is read and saved up front so the
+            // medal below can't race the save.
+            let finalScore = score
+            let previousHighScore = ResultBoard.bestScore()
+            if finalScore > previousHighScore {
+                ResultBoard.setBestScore(finalScore)
+            }
+
+            removeAction(forKey: "countUp")
+            currentScore.text = "0"
+            currentScoreInside.text = "0"
+            bestScore.text = "\(previousHighScore)"
+            bestScoreInside.text = "\(previousHighScore)"
+            new.removeAllActions()
+            new.setScale(0)
+
+            var countUp: [SKAction] = []
+            for i in 0 ... finalScore {
+                if i != 0 {
+                    countUp.append(.wait(forDuration: 1.5 / Double(finalScore)))
                 }
+                countUp.append(.run { [weak self] in
+                    self?.showCount(i, of: finalScore, previousHighScore: previousHighScore)
+                })
+            }
+            run(.sequence(countUp), withKey: "countUp")
+
+            // Medal is relative to the best score *before* this round (the
+            // author's rule): platinum means you doubled your previous best.
+            let medalTexture = finalScore == 0 ? SKTexture() : Assets.shared.sprites.textureNamed(
+                finalScore < previousHighScore / 2 ? "copper-medal" :
+                finalScore < previousHighScore ? "silver-medal" :
+                finalScore < previousHighScore * 2 ? "gold-medal" : "platinum-medal"
+            )
+            medalTexture.filteringMode = .nearest
+            medal.run(SKAction.setTexture(medalTexture, resize: true))
+
+            sparkle.setScale(0)
+            sparkle.removeAllActions()
+            if finalScore > 0 {
+                sparkle.run(sparkleAction)
+            }
+        }
+    }
+
+    private func showCount(_ i: Int, of finalScore: Int, previousHighScore: Int) {
+        currentScore.text = "\(i)"
+        currentScoreInside.text = "\(i)"
+        if i > previousHighScore {
+            bestScore.text = "\(i)"
+            bestScoreInside.text = "\(i)"
+            if i == finalScore {
+                new.run(SKAction.sequence([
+                    SKAction.scale(to: 0.7, duration: 0.05),
+                    SKAction.scale(to: 1.0, duration: 0.05)
+                ]))
             }
         }
     }
