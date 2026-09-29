@@ -26,11 +26,16 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
 
         // Game sounds follow the volume slider, not the Silent switch (the
         // owner's preference), and mix with any music or podcast playing.
-        try? AVAudioSession.sharedInstance().setCategory(
-            .playback,
-            options: [.mixWithOthers]
-        )
-        try? AVAudioSession.sharedInstance().setActive(true)
+        do {
+            try AVAudioSession.sharedInstance().setCategory(
+                .playback,
+                options: [.mixWithOthers]
+            )
+            try AVAudioSession.sharedInstance().setActive(true)
+        } catch {
+            logAudioSession("launch", error: error)
+        }
+        logAudioSession("launch")
 
         // SentrySDK.start { options in
         //     options.dsn = "..."
@@ -61,4 +66,25 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     ) {
         // Called when the user discards a scene session.
     }
+}
+
+/// Sound diagnostics (Debug builds only): prints the audio session state so a
+/// device run shows whether the session is set up when a sound plays.
+func logAudioSession(_ context: String, error: Error? = nil) {
+    #if DEBUG
+    let session = AVAudioSession.sharedInstance()
+    let outputs = session.currentRoute.outputs
+        .map { $0.portType.rawValue }
+        .joined(separator: ",")
+    NSLog(
+        "[audio] %@ category=%@ options=%lu volume=%.2f otherAudio=%d outputs=%@ error=%@",
+        context,
+        session.category.rawValue,
+        session.categoryOptions.rawValue,
+        session.outputVolume,
+        session.isOtherAudioPlaying ? 1 : 0,
+        outputs,
+        error.map { "\($0)" } ?? "none"
+    )
+    #endif
 }

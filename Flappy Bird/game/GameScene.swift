@@ -900,6 +900,7 @@ final class GameScene: SKScene {
         )
 
         if playSounds {
+            logAudioSession("flap")
             run(flapSound)
         }
 
@@ -2285,6 +2286,7 @@ private extension GameScene {
             return
         }
 
+        logAudioSession("playSound")
         run(sound)
     }
 
