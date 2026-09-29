@@ -86,9 +86,11 @@ class MKOutlinedLabelNode: SKLabelNode {
             let letters = CGMutablePath()
             var xPosition = 0 as CGFloat
             for index in 0...(chars.count - 1) {
-                let letter = CTFontCreatePathForGlyph(borderFont, glyphs[index], nil)
-                let t = CGAffineTransform(translationX: xPosition , y: 0)
-                letters.addPath(letter!, transform: t)
+                // A space has no outline (nil path); skip it instead of crashing.
+                if let letter = CTFontCreatePathForGlyph(borderFont, glyphs[index], nil) {
+                    let t = CGAffineTransform(translationX: xPosition , y: 0)
+                    letters.addPath(letter, transform: t)
+                }
                 xPosition = xPosition + advances[index].width
             }
             
