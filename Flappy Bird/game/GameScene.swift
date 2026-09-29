@@ -10,6 +10,41 @@
 import AVFoundation
 import SpriteKit
 
+// MARK: - Sound
+
+/// A game sound decoded once and replayed from memory. A few voices per
+/// sound let quick repeats (fast flaps) overlap instead of cutting off.
+final class GameSound {
+    private let players: [AVAudioPlayer]
+    private var next = 0
+
+    init(_ file: String, voices: Int = 2) {
+        let url = Bundle.main.url(
+            forResource: file,
+            withExtension: nil,
+            subdirectory: "sounds"
+        )
+
+        players = (0 ..< voices).compactMap { _ in
+            url.flatMap { try? AVAudioPlayer(contentsOf: $0) }
+        }
+
+        players.forEach { $0.prepareToPlay() }
+    }
+
+    func play() {
+        guard !players.isEmpty else {
+            return
+        }
+
+        let player = players[next]
+        next = (next + 1) % players.count
+
+        player.currentTime = 0
+        player.play()
+    }
+}
+
 // MARK: - Extensions
 
 extension SKTexture {
@@ -200,30 +235,13 @@ final class GameScene: SKScene {
 
     // MARK: Sounds
 
-    private let flapSound = SKAction.playSoundFileNamed(
-        "sounds/sfx_wing.caf",
-        waitForCompletion: false
-    )
-
-    private let dieSound = SKAction.playSoundFileNamed(
-        "sounds/sfx_die.caf",
-        waitForCompletion: false
-    )
-
-    private let pointSound = SKAction.playSoundFileNamed(
-        "sounds/sfx_point.wav",
-        waitForCompletion: false
-    )
-
-    private let hitSound = SKAction.playSoundFileNamed(
-        "sounds/sfx_hit.caf",
-        waitForCompletion: false
-    )
-
-    private let swooshSound = SKAction.playSoundFileNamed(
-        "sounds/sfx_swooshing.caf",
-        waitForCompletion: false
-    )
+    // Loaded once, not on every play: SKAction.playSoundFileNamed cost
+    // ~33 ms per point sound on the device (4 dropped frames at 120 Hz).
+    private let flapSound = GameSound("sfx_wing.caf", voices: 3)
+    private let dieSound = GameSound("sfx_die.caf")
+    private let pointSound = GameSound("sfx_point.wav")
+    private let hitSound = GameSound("sfx_hit.caf")
+    private let swooshSound = GameSound("sfx_swooshing.caf")
 
     // MARK: Textures
 
@@ -911,7 +929,7 @@ final class GameScene: SKScene {
         )
 
         if playSounds {
-            run(flapSound)
+            flapSound.play()
         }
 
         if haptics {
@@ -2293,12 +2311,12 @@ extension GameScene: SKPhysicsContactDelegate {
 
 private extension GameScene {
 
-    func playSound(_ sound: SKAction?) {
+    func playSound(_ sound: GameSound?) {
         guard playSounds, let sound else {
             return
         }
 
-        run(sound)
+        sound.play()
     }
 
     func scaleTwice(
