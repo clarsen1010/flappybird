@@ -195,6 +195,7 @@ final class GameScene: SKScene {
 
     private let impactFeedback = UIImpactFeedbackGenerator()
     private let notificationFeedback = UINotificationFeedbackGenerator()
+    private let deathFeedback = UIImpactFeedbackGenerator(style: .heavy)
     private let flapFeedback = UIImpactFeedbackGenerator(style: .light)
 
     // MARK: Sounds
@@ -272,6 +273,10 @@ final class GameScene: SKScene {
     // MARK: Scene Nodes
 
     private let moving = SKNode()
+
+    // Shakes the whole view on death. A camera, because gameOver() stops
+    // `moving` (speed 0), which would freeze a shake run on the world nodes.
+    private let shakeCamera = SKCameraNode()
     private let pipes = SKNode()
 
     private lazy var bird = makeBird()
@@ -444,6 +449,12 @@ final class GameScene: SKScene {
 
         addChild(bird)
         addChild(ground)
+
+        // Centered on the scene, the camera shows exactly what the view
+        // showed without one.
+        shakeCamera.position = CGPoint(x: frame.midX, y: frame.midY)
+        addChild(shakeCamera)
+        camera = shakeCamera
 
         placeMenuButtons()
         refreshBirdPickerIcon()
@@ -1980,6 +1991,8 @@ final class GameScene: SKScene {
 
         if haptics {
             notificationFeedback.notificationOccurred(.error)
+            deathFeedback.impactOccurred()
+            shakeScreen()
         }
 
         flashScreen(
@@ -2308,6 +2321,21 @@ private extension GameScene {
                     duration: secondScaleDuration
                 )
             ])
+        )
+    }
+
+    /// ~0.25 s shake on death, back to exactly where the camera started.
+    func shakeScreen() {
+        let home = shakeCamera.position
+        let offsets: [CGFloat] = [8, -7, 6, -5, 3, -2]
+
+        shakeCamera.removeAction(forKey: "shake")
+        shakeCamera.run(
+            .sequence(
+                offsets.map { .moveTo(x: home.x + $0, duration: 0.04) }
+                    + [.move(to: home, duration: 0.02)]
+            ),
+            withKey: "shake"
         )
     }
 
