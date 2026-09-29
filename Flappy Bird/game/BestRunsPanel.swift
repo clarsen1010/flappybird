@@ -226,7 +226,7 @@ class BestRunsPanel: SKNode {
     }
 
     private func showStats() {
-        let columns: [(String, CGFloat)] = [("BEST", -10), ("AVG", 40), ("GAMES", 88)]
+        let columns: [(String, CGFloat)] = [("BEST", -18), ("AVG", 30), ("GAMES", 78)]
 
         for (title, x) in columns {
             rowsNode.addChild(makeLabel(title, size: 8, x: x, y: rowCenterY(1)))
@@ -236,7 +236,7 @@ class BestRunsPanel: SKNode {
             let y = rowCenterY(index + 2)
             let stats = GameStats.summary(period)
 
-            rowsNode.addChild(makeLabel(period.title, size: 8, x: -78, y: y))
+            rowsNode.addChild(makeLabel(period.title, size: 8, x: -80, y: y))
             rowsNode.addChild(makeScoreLabel("\(stats.best)", x: columns[0].1, y: y))
             rowsNode.addChild(makeLabel(String(format: "%.1f", stats.average), size: 10, x: columns[1].1, y: y))
             rowsNode.addChild(makeLabel("\(stats.games)", size: 10, x: columns[2].1, y: y))

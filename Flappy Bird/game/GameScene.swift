@@ -124,15 +124,9 @@ final class GameScene: SKScene {
         static let resultDelay: TimeInterval = 0.2
 
         /// How far the ground (and the sky above it) sits below the original
-        /// layout. 0 = original, ground top at 29% of the screen.
-        static let groundDrop: CGFloat = 0
-    }
-
-    /// How the ground and pipes look at night: a navy blend over the day art,
-    /// or separate recolored night textures.
-    private enum NightLook {
-        case tinted
-        case recolored
+        /// layout. 0 = original (ground top at 29% of the screen); 78 puts it
+        /// at 19%, Christian's pick.
+        static let groundDrop: CGFloat = 78
     }
 
     // The sky art's flat top color. The scene background matches it, so a
@@ -140,9 +134,12 @@ final class GameScene: SKScene {
     private static let daySkyTop = UIColor(red: 78 / 255, green: 192 / 255, blue: 202 / 255, alpha: 1)
     private static let nightSkyTop = UIColor(red: 0, green: 135 / 255, blue: 147 / 255, alpha: 1)
 
-    private static let nightLook = NightLook.tinted
-    private static let nightTint = UIColor(red: 0.10, green: 0.14, blue: 0.36, alpha: 1)
-    private static let nightTintFactor: CGFloat = 0.45
+    private let groundNightTexture =
+        Assets.shared.sprites.textureNamed("night-land").then { $0.filteringMode = .nearest }
+    private let pipeNightTextureUp =
+        Assets.shared.sprites.textureNamed("night-PipeUp").then { $0.filteringMode = .nearest }
+    private let pipeNightTextureDown =
+        Assets.shared.sprites.textureNamed("night-PipeDown").then { $0.filteringMode = .nearest }
     
     private struct SeededRandomNumberGenerator {
         private var state: UInt64
@@ -307,6 +304,16 @@ final class GameScene: SKScene {
     private lazy var bird = makeBird()
     private lazy var ground = makeGround()
 
+    /// Wooden cross that pops up where the bird lands.
+    private lazy var graveNode = SKSpriteNode(
+        texture: Assets.shared.sprites.textureNamed("grave-cross").then {
+            $0.filteringMode = .nearest
+        }
+    ).then {
+        $0.anchorPoint = CGPoint(x: 0.5, y: 0)
+        $0.zPosition = GameZPosition.bird - 0.5
+    }
+
     private lazy var flappyBird = makeFlappyBird()
     private lazy var getReady = makeGetReady()
     private lazy var tapTap = makeTapTap()
@@ -431,12 +438,11 @@ final class GameScene: SKScene {
             $0.setScale(1.2)
             $0.addChild(
                 SKSpriteNode(
-                    texture: Assets.shared.sprites.textureNamed("gold-medal").then {
+                    texture: Assets.shared.sprites.textureNamed("charts-podium").then {
                         $0.filteringMode = .nearest
                     }
                 ).then {
                     $0.name = "bestRuns"
-                    $0.setScale(0.5)
                     $0.position = CGPoint(x: 0, y: 1)
                     $0.zPosition = 1
                 }
@@ -1889,7 +1895,7 @@ final class GameScene: SKScene {
         }
 
         for node in groundNodes {
-            applyNightLook(to: node, day: groundTexture, nightName: "night-land", night: night)
+            node.texture = night ? groundNightTexture : groundTexture
         }
 
         for group in pipes.children {
@@ -1899,31 +1905,15 @@ final class GameScene: SKScene {
         }
     }
 
+    /// Night pipes use the recolored night art (milder than the first cut).
     private func applyPipeLook(to pipe: SKSpriteNode, night: Bool) {
         switch pipe.name {
         case "pipeUp":
-            applyNightLook(to: pipe, day: pipeTextureUp, nightName: "night-PipeUp", night: night)
+            pipe.texture = night ? pipeNightTextureUp : pipeTextureUp
         case "pipeDown":
-            applyNightLook(to: pipe, day: pipeTextureDown, nightName: "night-PipeDown", night: night)
+            pipe.texture = night ? pipeNightTextureDown : pipeTextureDown
         default:
             break
-        }
-    }
-
-    private func applyNightLook(
-        to sprite: SKSpriteNode,
-        day: SKTexture,
-        nightName: String,
-        night: Bool
-    ) {
-        switch Self.nightLook {
-        case .tinted:
-            sprite.color = Self.nightTint
-            sprite.colorBlendFactor = night ? Self.nightTintFactor : 0
-        case .recolored:
-            sprite.texture = night
-                ? Assets.shared.sprites.textureNamed(nightName).then { $0.filteringMode = .nearest }
-                : day
         }
     }
 
@@ -2148,7 +2138,13 @@ final class GameScene: SKScene {
             PhysicsCategory.land
         bird.physicsBody?.isDynamic = true
 
-        applyBirdAnimation()
+        // X eyes: the dead frame replaces the flapping animation.
+        bird.removeAction(forKey: "birdAnimation")
+        bird.texture = Assets.shared.sprites.textureNamed(
+            score >= Constants.superScore ? "super-bird-dead" : "\(currentBirdColor)-bird-dead"
+        ).then {
+            $0.filteringMode = .nearest
+        }
 
         playSound(hitSound)
 
@@ -2267,6 +2263,7 @@ final class GameScene: SKScene {
 
         resultNode.removeFromParent()
         gameOverNode.removeFromParent()
+        graveNode.removeFromParent()
 
         refreshTheme()
 
@@ -2387,14 +2384,10 @@ final class GameScene: SKScene {
             return
         }
 
-        // Fade straight back to the pipe's own day/night tint.
-        let settle: SKAction = isNight && Self.nightLook == .tinted
-            ? .colorize(with: Self.nightTint, colorBlendFactor: Self.nightTintFactor, duration: 0.3)
-            : .colorize(withColorBlendFactor: 0, duration: 0.3)
         let pipeFlash = SKAction.sequence([
             .colorize(with: gold, colorBlendFactor: 0.6, duration: 0.08),
             .wait(forDuration: 0.5),
-            settle
+            .colorize(withColorBlendFactor: 0, duration: 0.3)
         ])
 
         for group in pipes.children {
@@ -2421,6 +2414,26 @@ final class GameScene: SKScene {
         gameOver()
     }
 
+    private func showGrave() {
+        graveNode.removeAllActions()
+        graveNode.removeFromParent()
+        graveNode.position = CGPoint(
+            x: bird.position.x + 30,
+            y: groundTexture.height * 2 - Constants.groundDrop
+        )
+        graveNode.setScale(0)
+        addChild(graveNode)
+
+        // Same pixel size as the bird.
+        graveNode.run(
+            .sequence([
+                .wait(forDuration: 0.15),
+                .scale(to: Constants.birdScale * 1.15, duration: 0.1),
+                .scale(to: Constants.birdScale, duration: 0.08)
+            ])
+        )
+    }
+
     private func handleGroundCollision() {
         guard !hasHitGround else {
             return
@@ -2432,6 +2445,8 @@ final class GameScene: SKScene {
         if !isShowingGameOver {
             gameOver()
         }
+
+        showGrave()
 
         bird.physicsBody?.velocity = .zero
 
