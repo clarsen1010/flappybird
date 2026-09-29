@@ -78,6 +78,11 @@ class BestRunsPanel: SKNode {
         $0.dateFormat = "M/d/yy"
     }
 
+    // Local 12-hour time, e.g. "7:42 PM", shown under the date.
+    private static let timeFormatter = DateFormatter().then {
+        $0.dateFormat = "h:mm a"
+    }
+
     private let rowsNode = SKNode()
 
     lazy var backButton = SKSpriteNode(texture: SKTexture(imageNamed: "back-button").then { $0.filteringMode = .nearest }).then {
@@ -121,11 +126,17 @@ class BestRunsPanel: SKNode {
 
         for (index, run) in runs.enumerated() {
             let y = rowCenterY(index + 1)
-            let date = run.date.map { Self.dateFormatter.string(from: $0) } ?? "--"
 
             rowsNode.addChild(makeLabel("\(index + 1).", size: 10, x: Layout.rankX, y: y))
             rowsNode.addChild(makeScoreLabel("\(run.score)", x: Layout.scoreX, y: y))
-            rowsNode.addChild(makeLabel(date, size: 10, x: Layout.dateX, y: y))
+
+            // Date over time: one line does not fit the 230-wide panel.
+            if let date = run.date {
+                rowsNode.addChild(makeLabel(Self.dateFormatter.string(from: date), size: 10, x: Layout.dateX, y: y + 6))
+                rowsNode.addChild(makeLabel(Self.timeFormatter.string(from: date), size: 8, x: Layout.dateX, y: y - 7))
+            } else {
+                rowsNode.addChild(makeLabel("--", size: 10, x: Layout.dateX, y: y))
+            }
         }
     }
 
