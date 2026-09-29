@@ -119,7 +119,22 @@ final class GameScene: SKScene {
 
         static let gameOverDelay: TimeInterval = 0.8
         static let resultDelay: TimeInterval = 0.2
+
+        /// How far the ground (and the sky above it) sits below the original
+        /// layout. 0 = original, ground top at 29% of the screen.
+        static let groundDrop: CGFloat = 0
     }
+
+    /// How the ground and pipes look at night: a navy blend over the day art,
+    /// or separate recolored night textures.
+    private enum NightLook {
+        case tinted
+        case recolored
+    }
+
+    private static let nightLook = NightLook.tinted
+    private static let nightTint = UIColor(red: 0.10, green: 0.14, blue: 0.36, alpha: 1)
+    private static let nightTintFactor: CGFloat = 0.45
     
     private struct SeededRandomNumberGenerator {
         private var state: UInt64
@@ -186,9 +201,11 @@ final class GameScene: SKScene {
     private var playSounds = true
     private var newBirds = true
     private var haptics = true
-    private var adaptiveBackground = false
+    /// On: day or night follows the phone's appearance. Off: always day.
+    private var darkMode = true
 
     private var skyNodes = [SKSpriteNode]()
+    private var groundNodes = [SKSpriteNode]()
     private var birdTextures = [SKTexture(), SKTexture(), SKTexture()]
 
     // MARK: Feedback
@@ -480,7 +497,8 @@ final class GameScene: SKScene {
 
     private func configureWorld() {
         createGroundMovement()
-        updateSky()
+        createSky()
+        refreshTheme()
         updateBirdTextures()
         startPipeSpawner()
     }
@@ -503,9 +521,9 @@ final class GameScene: SKScene {
             defaultValue: true
         )
 
-        adaptiveBackground = loadBoolSetting(
-            key: "adaptiveBackground",
-            defaultValue: false
+        darkMode = loadBoolSetting(
+            key: "darkMode",
+            defaultValue: true
         )
 
         if let choice = UserDefaults.standard.string(forKey: "birdChoice"),
@@ -558,11 +576,11 @@ final class GameScene: SKScene {
             y: SettingsPositions.hapticsToggleY
         )
 
-        settingsNode.adaptiveBackgroundToggle.position = CGPoint(
-            x: adaptiveBackground
+        settingsNode.darkModeToggle.position = CGPoint(
+            x: darkMode
                 ? SettingsPositions.toggleOnX
                 : SettingsPositions.toggleOffX,
-            y: SettingsPositions.adaptiveBackgroundToggleY
+            y: SettingsPositions.darkModeToggleY
         )
     }
 
@@ -600,7 +618,7 @@ final class GameScene: SKScene {
         SKNode().then {
             $0.position = CGPoint(
                 x: 0,
-                y: groundTexture.height
+                y: groundTexture.height - Constants.groundDrop
             )
 
             $0.zPosition = GameZPosition.land
@@ -1012,8 +1030,8 @@ final class GameScene: SKScene {
         case "toggleHaptics":
             handleHapticsToggle()
 
-        case "toggleAdaptiveBackground":
-            handleAdaptiveBackgroundToggle()
+        case "toggleDarkMode":
+            handleDarkModeToggle()
 
         case "settingsBack":
             handleSettingsBack()
@@ -1711,7 +1729,7 @@ final class GameScene: SKScene {
         }
     }
 
-    private func handleAdaptiveBackgroundToggle() {
+    private func handleDarkModeToggle() {
         playSound(swooshSound)
 
         if haptics {
@@ -1719,13 +1737,13 @@ final class GameScene: SKScene {
         }
 
         toggle(
-            value: &adaptiveBackground,
-            key: "adaptiveBackground",
-            control: settingsNode.adaptiveBackgroundToggle,
-            y: SettingsPositions.adaptiveBackgroundToggleY
+            value: &darkMode,
+            key: "darkMode",
+            control: settingsNode.darkModeToggle,
+            y: SettingsPositions.darkModeToggleY
         )
 
-        updateSky()
+        refreshTheme()
     }
 
     // MARK: Ground
@@ -1761,33 +1779,74 @@ final class GameScene: SKScene {
                 $0.setScale(2)
                 $0.position = CGPoint(
                     x: CGFloat(index) * ($0.width - 1),
-                    y: $0.height / 2
+                    y: $0.height / 2 - Constants.groundDrop
                 )
                 $0.run(movement)
             }
 
+            groundNodes.append(node)
             moving.addChild(node)
         }
     }
 
-    // MARK: Sky
+    // MARK: Sky and Theme
 
-    private func updateSky() {
-        let randomTexture =
-            Float.random(in: 0..<1) < 0.5
-            ? nightTexture
-            : dayTexture
+    /// Night when Dark Mode is on and the phone is in dark appearance.
+    private var isNight: Bool {
+        darkMode && view?.traitCollection.userInterfaceStyle == .dark
+    }
 
-        var skyTexture = randomTexture
+    /// Swaps day/night art on the existing nodes, so nothing restarts or
+    /// jumps. Called at launch, from the Dark Mode switch, at each new round,
+    /// and by GameViewController when the phone's appearance changes.
+    func refreshTheme() {
+        let night = isNight
 
-        if #available(iOS 12.0, *) {
-            if adaptiveBackground {
-                skyTexture =
-                    view?.traitCollection.userInterfaceStyle == .dark
-                    ? nightTexture
-                    : dayTexture
+        for node in skyNodes {
+            node.texture = night ? nightTexture : dayTexture
+        }
+
+        for node in groundNodes {
+            applyNightLook(to: node, day: groundTexture, nightName: "night-land", night: night)
+        }
+
+        for group in pipes.children {
+            for case let pipe as SKSpriteNode in group.children {
+                applyPipeLook(to: pipe, night: night)
             }
         }
+    }
+
+    private func applyPipeLook(to pipe: SKSpriteNode, night: Bool) {
+        switch pipe.name {
+        case "pipeUp":
+            applyNightLook(to: pipe, day: pipeTextureUp, nightName: "night-PipeUp", night: night)
+        case "pipeDown":
+            applyNightLook(to: pipe, day: pipeTextureDown, nightName: "night-PipeDown", night: night)
+        default:
+            break
+        }
+    }
+
+    private func applyNightLook(
+        to sprite: SKSpriteNode,
+        day: SKTexture,
+        nightName: String,
+        night: Bool
+    ) {
+        switch Self.nightLook {
+        case .tinted:
+            sprite.color = Self.nightTint
+            sprite.colorBlendFactor = night ? Self.nightTintFactor : 0
+        case .recolored:
+            sprite.texture = night
+                ? Assets.shared.sprites.textureNamed(nightName).then { $0.filteringMode = .nearest }
+                : day
+        }
+    }
+
+    private func createSky() {
+        let skyTexture = dayTexture
 
         let skyWidth = skyTexture.width * 1.5
 
@@ -1821,18 +1880,13 @@ final class GameScene: SKScene {
                 $0.position = CGPoint(
                     x: CGFloat(index) * ($0.width - 1),
                     y: $0.height / 3.5 +
-                        groundTexture.height * 2
+                        groundTexture.height * 2 -
+                        Constants.groundDrop
                 )
                 $0.run(movement)
             }
 
-            if skyNodes.count < requiredCount {
-                skyNodes.append(node)
-            } else {
-                skyNodes[index].removeFromParent()
-                skyNodes[index] = node
-            }
-
+            skyNodes.append(node)
             moving.addChild(node)
         }
     }
@@ -1867,6 +1921,7 @@ final class GameScene: SKScene {
         )
 
         let pipeDown = makePipe(
+            name: "pipeDown",
             texture: pipeTextureDown,
             position: CGPoint(
                 x: 0,
@@ -1876,6 +1931,7 @@ final class GameScene: SKScene {
         )
 
         let pipeUp = makePipe(
+            name: "pipeUp",
             texture: pipeTextureUp,
             position: CGPoint(
                 x: 0,
@@ -1920,10 +1976,13 @@ final class GameScene: SKScene {
     }
 
     private func makePipe(
+        name: String,
         texture: SKTexture,
         position: CGPoint
     ) -> SKSpriteNode {
         SKSpriteNode(texture: texture).then {
+            $0.name = name
+            applyPipeLook(to: $0, night: isNight)
             $0.setScale(Constants.pipeScale)
             $0.position = position
 
@@ -2117,7 +2176,7 @@ final class GameScene: SKScene {
         resultNode.removeFromParent()
         gameOverNode.removeFromParent()
 
-        updateSky()
+        refreshTheme()
 
         addChild(tapTap)
         addChild(getReady)

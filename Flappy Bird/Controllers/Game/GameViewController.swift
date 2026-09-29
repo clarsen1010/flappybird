@@ -43,6 +43,14 @@ class GameViewController: UIViewController {
         guard let scene = scene, let skView = self.view as? SKView else { return }
         skView.presentScene(scene)
         becomeFirstResponder()
+
+        // Dark Mode follows the phone mid-game too. iOS 16 picks up a change
+        // at the next round instead.
+        if #available(iOS 17.0, *) {
+            registerForTraitChanges([UITraitUserInterfaceStyle.self]) { (self: Self, _) in
+                self.scene?.refreshTheme()
+            }
+        }
     }
     
     override func pressesBegan(_ presses: Set<UIPress>, with event: UIPressesEvent?) {

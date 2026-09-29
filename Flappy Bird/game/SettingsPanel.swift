@@ -15,7 +15,7 @@ struct SettingsPositions {
     static let soundToggleY: CGFloat = 60
     static let newBirdsToggleY: CGFloat = 24
     static let hapticsToggleY: CGFloat = -12
-    static let adaptiveBackgroundToggleY: CGFloat = -56
+    static let darkModeToggleY: CGFloat = -56
     
     static let backButtonX: CGFloat = -92
     static let backButtonY: CGFloat = 85
@@ -39,8 +39,8 @@ class SettingsPanel: SKSpriteNode {
         addChild(hapticsToggle)
         addChild(hapticsButton)
         
-        addChild(adaptiveBackgroundToggle)
-        addChild(adaptiveBackgroundButton)
+        addChild(darkModeToggle)
+        addChild(darkModeButton)
     }
     
     lazy var versionLabel = MKOutlinedLabelNode(fontNamed: "KongtextRegular", fontSize: 12).then {
@@ -111,14 +111,14 @@ class SettingsPanel: SKSpriteNode {
         $0.size = CGSize(width: 45, height: 25)
     }
     
-    lazy var adaptiveBackgroundToggle = SKSpriteNode(texture: SKTexture(imageNamed: "toggle").then { $0.filteringMode = .nearest }).then {
-        $0.position = CGPoint(x: SettingsPositions.toggleOnX, y: SettingsPositions.adaptiveBackgroundToggleY)
+    lazy var darkModeToggle = SKSpriteNode(texture: SKTexture(imageNamed: "toggle").then { $0.filteringMode = .nearest }).then {
+        $0.position = CGPoint(x: SettingsPositions.toggleOnX, y: SettingsPositions.darkModeToggleY)
         $0.zPosition = 2
     }
     
-    lazy var adaptiveBackgroundButton = SKSpriteNode().then {
-        $0.name = "toggleAdaptiveBackground"
-        $0.position = CGPoint(x: SettingsPositions.toggleOffX + (SettingsPositions.toggleOnX - SettingsPositions.toggleOffX) / 2, y: SettingsPositions.adaptiveBackgroundToggleY)
+    lazy var darkModeButton = SKSpriteNode().then {
+        $0.name = "toggleDarkMode"
+        $0.position = CGPoint(x: SettingsPositions.toggleOffX + (SettingsPositions.toggleOnX - SettingsPositions.toggleOffX) / 2, y: SettingsPositions.darkModeToggleY)
         $0.zPosition = 3
         $0.color = UIColor.clear
         $0.size = CGSize(width: 45, height: 25)
