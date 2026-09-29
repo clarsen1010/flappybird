@@ -2145,6 +2145,9 @@ final class GameScene: SKScene {
         resultNode.score = score
         addChild(resultNode)
 
+        // After every save above (the result board saves a new best).
+        CloudSync.merge()
+
         scaleTwice(
             node: resultNode,
             firstScale: 1,

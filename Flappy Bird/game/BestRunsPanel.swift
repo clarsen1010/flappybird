@@ -7,7 +7,7 @@
 import Foundation
 import SpriteKit
 
-struct BestRun: Codable {
+struct BestRun: Codable, Equatable {
     let score: Int
     let date: Date?
 }
@@ -16,7 +16,7 @@ enum BestRuns {
     static let shownCount = 5
 
     private static let key = "bestRuns"
-    private static let keptCount = 10
+    static let keptCount = 10
 
     static func load() -> [BestRun] {
         if let data = UserDefaults.standard.data(forKey: key),
@@ -40,16 +40,18 @@ enum BestRuns {
         var runs = load()
         runs.append(BestRun(score: score, date: Date()))
 
-        // Highest first; ties keep the earlier run on top.
-        runs.sort {
+        if let data = try? JSONEncoder().encode(Array(sorted(runs).prefix(keptCount))) {
+            UserDefaults.standard.set(data, forKey: key)
+        }
+    }
+
+    /// Highest first; ties keep the earlier run on top.
+    static func sorted(_ runs: [BestRun]) -> [BestRun] {
+        runs.sorted {
             if $0.score != $1.score {
                 return $0.score > $1.score
             }
             return ($0.date ?? .distantPast) < ($1.date ?? .distantPast)
-        }
-
-        if let data = try? JSONEncoder().encode(Array(runs.prefix(keptCount))) {
-            UserDefaults.standard.set(data, forKey: key)
         }
     }
 }

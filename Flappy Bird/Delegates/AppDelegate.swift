@@ -24,6 +24,9 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
 
         // Assets.shared.preloadAssets()
 
+        // Pull scores and stats from iCloud before any screen reads them.
+        CloudSync.start()
+
         activateAudioSession("launch")
 
         // A call, Siri or an alarm deactivates the session; turn it back on
