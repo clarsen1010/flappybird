@@ -350,36 +350,6 @@ final class GameScene: SKScene {
         $0.zPosition = GameZPosition.score + 1
     }
 
-    /// "BEST 42" under the logo on the title screen; hidden until there is a best.
-    private lazy var bestTitleNode = SKNode().then {
-        // Between the logo and the top of the idle bird's float.
-        $0.position = CGPoint(x: width / 2, y: height / 2 + 147)
-        $0.zPosition = GameZPosition.score
-        $0.addChild(bestTitleInside)
-        $0.addChild(bestTitleOutline)
-    }
-
-    private lazy var bestTitleOutline = SKLabelNode(fontNamed: "04b_19").then {
-        $0.fontColor = .black
-        $0.fontSize = 18
-        $0.verticalAlignmentMode = .center
-        $0.zPosition = 1
-    }
-
-    private lazy var bestTitleInside = SKLabelNode(fontNamed: "inside").then {
-        $0.fontColor = .white
-        $0.fontSize = 18
-        $0.verticalAlignmentMode = .center
-        $0.position = CGPoint(x: -0.56, y: 0)
-    }
-
-    private func refreshBestTitle() {
-        let best = ResultBoard.bestScore()
-        bestTitleOutline.text = "BEST \(best)"
-        bestTitleInside.text = "BEST \(best)"
-        bestTitleNode.isHidden = best == 0
-    }
-
     private lazy var scoreLabelNodeInside = SKLabelNode(
         fontNamed: "inside"
     ).then {
@@ -507,14 +477,7 @@ final class GameScene: SKScene {
         ScreenData.shared.width = width
 
         addChild(flappyBird)
-        refreshBestTitle()
-        addChild(bestTitleNode)
         addChild(moving)
-
-        // iCloud can bring back a higher best after launch.
-        CloudSync.onChange = { [weak self] in
-            self?.refreshBestTitle()
-        }
 
         moving.addChild(pipes)
 
@@ -1375,7 +1338,6 @@ final class GameScene: SKScene {
         )
 
         flappyBird.removeFromParent()
-        bestTitleNode.removeFromParent()
 
         startIdleAnimation()
     }
