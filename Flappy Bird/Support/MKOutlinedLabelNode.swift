@@ -74,6 +74,7 @@ class MKOutlinedLabelNode: SKLabelNode {
     
     private func createBorderPathForText() -> CGPath? {
         let chars = getTextAsCharArray()
+        guard !chars.isEmpty else { return nil }
         let borderFont = CTFontCreateWithName((self.fontName as CFString?)!, self.fontSize, nil)
         
         var glyphs = Array<CGGlyph>(repeating: 0, count: chars.count)
