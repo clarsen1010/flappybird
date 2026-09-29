@@ -16,6 +16,24 @@ class GameViewController: UIViewController {
     public static let shared = GameViewController()
     
     override var shouldAutorotate: Bool { false }
+
+    /// Landscape prototype: the game keeps whichever orientation the phone was
+    /// held in when it appeared; turning the phone mid-game does nothing.
+    private lazy var lockedOrientations: UIInterfaceOrientationMask = {
+        let orientation = view.window?.windowScene?.interfaceOrientation
+            ?? UIApplication.shared.connectedScenes
+                .compactMap { ($0 as? UIWindowScene)?.interfaceOrientation }
+                .first
+            ?? .portrait
+
+        switch orientation {
+        case .landscapeLeft: return .landscapeLeft
+        case .landscapeRight: return .landscapeRight
+        default: return .portrait
+        }
+    }()
+
+    override var supportedInterfaceOrientations: UIInterfaceOrientationMask { lockedOrientations }
     override var prefersStatusBarHidden: Bool { true }
     override var canBecomeFirstResponder: Bool { true }
     
@@ -40,8 +58,6 @@ class GameViewController: UIViewController {
         super.viewDidLoad()
         
         GameScene.hitButton = false
-        guard let scene = scene, let skView = self.view as? SKView else { return }
-        skView.presentScene(scene)
         becomeFirstResponder()
 
         // Dark Mode follows the phone mid-game too. iOS 16 picks up a change
@@ -53,6 +69,29 @@ class GameViewController: UIViewController {
         }
     }
     
+    /// The scene is presented on the first layout, once the view has its real
+    /// size. In landscape the scene widens to the screen's shape at the same
+    /// height (768), so the vertical layout is unchanged. Portrait keeps the
+    /// original 1024-wide scene.
+    override func viewDidLayoutSubviews() {
+        super.viewDidLayoutSubviews()
+
+        guard let skView = view as? SKView, skView.scene == nil, let scene else {
+            return
+        }
+
+        _ = lockedOrientations
+        let bounds = skView.bounds.size
+        if bounds.width > bounds.height {
+            scene.size = CGSize(
+                width: (scene.size.height * bounds.width / bounds.height).rounded(),
+                height: scene.size.height
+            )
+        }
+
+        skView.presentScene(scene)
+    }
+
     override func pressesBegan(_ presses: Set<UIPress>, with event: UIPressesEvent?) {
         var didHandleEvent = false
         for press in presses {
