@@ -43,20 +43,20 @@ class SettingsPanel: SKSpriteNode {
         addChild(adaptiveBackgroundButton)
     }
     
-    // Size 8, just right of the back arrow: the longest stamp ("5.0 TEST abc1234") fits the panel.
-    lazy var versionLabel = MKOutlinedLabelNode(fontNamed: "KongtextRegular", fontSize: 8).then {
+    lazy var versionLabel = MKOutlinedLabelNode(fontNamed: "KongtextRegular", fontSize: 12).then {
         $0.name = "versionLabel"
-        $0.position = CGPoint(x: 12, y: SettingsPositions.soundToggleY + 20)
+        $0.position = CGPoint(x: SettingsPositions.toggleOffX + (SettingsPositions.toggleOnX - SettingsPositions.toggleOffX) / 2, y: SettingsPositions.soundToggleY + 20)
         $0.zPosition = 3
         $0.fontColor = UIColor.white
         $0.borderColor = UIColor.black
         $0.borderWidth = 1
         $0.borderOffset = CGPoint(x: 0, y: 0)
-        // FBBuildStamp is the commit (or TEST) that install.sh passes in; empty from Xcode.
+        // Shows the version (5.0.1, bumped for every phone install). install.sh --test sets
+        // FBBuildStamp to TEST so a build carrying test code is obvious.
         let info = Bundle.main.infoDictionary
         let version = info?["CFBundleShortVersionString"] as? String ?? ""
         let stamp = info?["FBBuildStamp"] as? String ?? ""
-        $0.outlinedText = stamp.isEmpty ? version : "\(version) \(stamp)"
+        $0.outlinedText = stamp.isEmpty ? version : stamp
     }
     
     lazy var backButton = SKSpriteNode(texture: SKTexture(imageNamed: "back-button").then { $0.filteringMode = .nearest }).then {

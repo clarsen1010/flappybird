@@ -20,8 +20,11 @@ class LoadingViewController: UIViewController {
     override func viewDidLoad() {
         super.viewDidLoad()
         print("Showing launch screen")
+        // "5.0.3" -> "5.0 Edition": the patch number changes every install, the edition doesn't.
+        let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? ""
+        let edition = version.split(separator: ".").prefix(2).joined(separator: ".")
         infoLabel.text = """
-Flappy Bird \(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as! String) Edition
+Flappy Bird \(edition) Edition
 by Christian Larsen
 
 Original game © 2019 - \(Calendar.current.component(.year, from: Date()))
