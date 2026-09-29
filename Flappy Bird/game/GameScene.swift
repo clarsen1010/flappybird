@@ -316,6 +316,9 @@ final class GameScene: SKScene {
     /// "random" or one of pickableBirds; chosen with the bird-picker button.
     private var birdChoice = "random"
 
+    /// The color flying this round, for the Rainbow achievement.
+    private var currentBirdColor = "yellow"
+
     private lazy var playButton = makePlayButton()
     private lazy var pauseButton = makePauseButton()
     private lazy var resumeButton = makeResumeButton()
@@ -827,6 +830,7 @@ final class GameScene: SKScene {
 
     private func updateBirdTextures() {
         let randomValue = Float.random(in: 0..<1)
+        var roundColor = "yellow"
 
         for index in 0...2 {
             let color: String
@@ -861,6 +865,7 @@ final class GameScene: SKScene {
                 }
             }
 
+            roundColor = color
             birdTextures[index] =
                 Assets.shared.sprites.textureNamed(
                     "\(color)-bird-\(index + 1)"
@@ -869,6 +874,7 @@ final class GameScene: SKScene {
                 }
         }
 
+        currentBirdColor = roundColor
         applyBirdAnimation()
     }
 
@@ -2127,6 +2133,13 @@ final class GameScene: SKScene {
 
         // Before resultNode.score saves a new best (see BestRuns.record).
         BestRuns.record(score)
+        GameStats.record(score: score)
+        Achievements.record(
+            score: score,
+            bird: currentBirdColor,
+            night: isNight,
+            allBirds: Self.pickableBirds
+        )
 
         resultNode.setScale(0)
         resultNode.score = score

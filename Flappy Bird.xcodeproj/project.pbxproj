@@ -22,6 +22,7 @@
 		DD898AFD245CCFC400478094 /* sounds in Resources */ = {isa = PBXBuildFile; fileRef = DD898AFC245CCFC400478094 /* sounds */; };
 		DD898B13245CD23A00478094 /* SettingsPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD898B0F245CD23A00478094 /* SettingsPanel.swift */; };
 		C1A5B0F22E8A000100F1A001 /* BestRunsPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1A5B0F12E8A000100F1A001 /* BestRunsPanel.swift */; };
+		C1A5B0F42E8A000100F1A001 /* GameStats.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1A5B0F32E8A000100F1A001 /* GameStats.swift */; };
 		DD898B14245CD23A00478094 /* GameScene.sks in Resources */ = {isa = PBXBuildFile; fileRef = DD898B10245CD23A00478094 /* GameScene.sks */; };
 		DD898B15245CD23A00478094 /* ResultBoard.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD898B11245CD23A00478094 /* ResultBoard.swift */; };
 		DD898B16245CD23A00478094 /* GameScene.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD898B12245CD23A00478094 /* GameScene.swift */; };
@@ -61,6 +62,7 @@
 		DD898AFC245CCFC400478094 /* sounds */ = {isa = PBXFileReference; lastKnownFileType = folder; path = sounds; sourceTree = "<group>"; };
 		DD898B0F245CD23A00478094 /* SettingsPanel.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = SettingsPanel.swift; sourceTree = "<group>"; };
 		C1A5B0F12E8A000100F1A001 /* BestRunsPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BestRunsPanel.swift; sourceTree = "<group>"; };
+		C1A5B0F32E8A000100F1A001 /* GameStats.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameStats.swift; sourceTree = "<group>"; };
 		DD898B10245CD23A00478094 /* GameScene.sks */ = {isa = PBXFileReference; lastKnownFileType = file.sks; path = GameScene.sks; sourceTree = "<group>"; };
 		DD898B11245CD23A00478094 /* ResultBoard.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ResultBoard.swift; sourceTree = "<group>"; };
 		DD898B12245CD23A00478094 /* GameScene.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = GameScene.swift; sourceTree = "<group>"; };
@@ -171,6 +173,7 @@
 				DD898B19245CD2C100478094 /* Actions.sks */,
 				DD898B0F245CD23A00478094 /* SettingsPanel.swift */,
 				C1A5B0F12E8A000100F1A001 /* BestRunsPanel.swift */,
+				C1A5B0F32E8A000100F1A001 /* GameStats.swift */,
 				DD898B10245CD23A00478094 /* GameScene.sks */,
 				DD898B11245CD23A00478094 /* ResultBoard.swift */,
 				DD898B12245CD23A00478094 /* GameScene.swift */,
@@ -272,6 +275,7 @@
 				DD898B15245CD23A00478094 /* ResultBoard.swift in Sources */,
 				DD898B13245CD23A00478094 /* SettingsPanel.swift in Sources */,
 				C1A5B0F22E8A000100F1A001 /* BestRunsPanel.swift in Sources */,
+				C1A5B0F42E8A000100F1A001 /* GameStats.swift in Sources */,
 				881336392700DF5A00252F12 /* Then.swift in Sources */,
 				CE55ED83305317960031EB43 /* SceneDelegate.swift in Sources */,
 			);
