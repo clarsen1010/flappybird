@@ -456,7 +456,7 @@
 					"$(inherited)",
 					"$(PROJECT_DIR)",
 				);
-				MARKETING_VERSION = 5.0.2;
+				MARKETING_VERSION = 5.0.3;
 				PRODUCT_BUNDLE_IDENTIFIER = com.clarsen1010.flappybird;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
@@ -491,7 +491,7 @@
 					"$(inherited)",
 					"$(PROJECT_DIR)",
 				);
-				MARKETING_VERSION = 5.0.2;
+				MARKETING_VERSION = 5.0.3;
 				PRODUCT_BUNDLE_IDENTIFIER = com.clarsen1010.flappybird;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
