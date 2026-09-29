@@ -22,7 +22,10 @@ class LoadingViewController: UIViewController {
         print("Showing launch screen")
         infoLabel.text = """
 Flappy Bird \(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as! String)
-Copyright © 2019 - \(Calendar.current.component(.year, from: Date()))
+iPhone 18 Pro edition
+by Christian Larsen
+
+Original game © 2019 - \(Calendar.current.component(.year, from: Date()))
 Brandon Plank, ThatcherDev
 
 See license for details.
