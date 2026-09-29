@@ -79,7 +79,9 @@ class BestRunsPanel: SKNode {
     }
 
     // Local 12-hour time, e.g. "7:42 PM", shown under the date.
+    // Fixed English locale: the pixel font cannot draw other AM/PM markers.
     private static let timeFormatter = DateFormatter().then {
+        $0.locale = Locale(identifier: "en_US_POSIX")
         $0.dateFormat = "h:mm a"
     }
 

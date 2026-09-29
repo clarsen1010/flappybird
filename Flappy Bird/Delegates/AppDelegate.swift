@@ -84,10 +84,10 @@ func activateAudioSession(_ context: String) {
             options: [.mixWithOthers]
         )
         try AVAudioSession.sharedInstance().setActive(true)
+        logAudioSession(context)
     } catch {
         logAudioSession(context, error: error)
     }
-    logAudioSession(context)
 }
 
 /// Sound diagnostics (Debug builds only): prints the audio session state so a
@@ -99,7 +99,7 @@ func logAudioSession(_ context: String, error: Error? = nil) {
         .map { $0.portType.rawValue }
         .joined(separator: ",")
     NSLog(
-        "[audio] %@ category=%@ options=%lu volume=%.2f otherAudio=%d outputs=%@ error=%@",
+        "[audio] %@ category=%@ options=%lu volume=%.2f otherAudio=%ld outputs=%@ error=%@",
         context,
         session.category.rawValue,
         session.categoryOptions.rawValue,

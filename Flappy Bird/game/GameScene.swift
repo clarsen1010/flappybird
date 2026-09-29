@@ -2346,11 +2346,12 @@ private extension GameScene {
         fadeOutDuration: TimeInterval
     ) {
         let flash = SKShapeNode(
+            // Padded past the death shake (8 units) so no edge shows.
             rect: CGRect(
-                x: -5,
-                y: -5,
-                width: width + 10,
-                height: height + 10
+                x: -15,
+                y: -15,
+                width: width + 30,
+                height: height + 30
             )
         )
 
