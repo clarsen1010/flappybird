@@ -352,7 +352,8 @@ final class GameScene: SKScene {
 
     /// "BEST 42" under the logo on the title screen; hidden until there is a best.
     private lazy var bestTitleNode = SKNode().then {
-        $0.position = CGPoint(x: width / 2, y: height / 2 + 138)
+        // Between the logo and the top of the idle bird's float.
+        $0.position = CGPoint(x: width / 2, y: height / 2 + 147)
         $0.zPosition = GameZPosition.score
         $0.addChild(bestTitleInside)
         $0.addChild(bestTitleOutline)
@@ -360,16 +361,16 @@ final class GameScene: SKScene {
 
     private lazy var bestTitleOutline = SKLabelNode(fontNamed: "04b_19").then {
         $0.fontColor = .black
-        $0.fontSize = 24
+        $0.fontSize = 18
         $0.verticalAlignmentMode = .center
         $0.zPosition = 1
     }
 
     private lazy var bestTitleInside = SKLabelNode(fontNamed: "inside").then {
         $0.fontColor = .white
-        $0.fontSize = 24
+        $0.fontSize = 18
         $0.verticalAlignmentMode = .center
-        $0.position = CGPoint(x: -0.75, y: 0)
+        $0.position = CGPoint(x: -0.56, y: 0)
     }
 
     private func refreshBestTitle() {
@@ -2385,7 +2386,8 @@ final class GameScene: SKScene {
         }
 
         let pipeFlash = SKAction.sequence([
-            .colorize(with: gold, colorBlendFactor: 0.6, duration: 0.08),
+            // Strong blend: at 0.6 the green pipes read as olive, not gold.
+            .colorize(with: gold, colorBlendFactor: 0.85, duration: 0.08),
             .wait(forDuration: 0.5),
             .colorize(withColorBlendFactor: 0, duration: 0.3)
         ])
