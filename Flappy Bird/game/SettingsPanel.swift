@@ -43,9 +43,10 @@ class SettingsPanel: SKSpriteNode {
         addChild(adaptiveBackgroundButton)
     }
     
-    lazy var versionLabel = MKOutlinedLabelNode(fontNamed: "KongtextRegular", fontSize: 12).then {
+    // Size 8, just right of the back arrow: the longest stamp ("5.0 TEST abc1234") fits the panel.
+    lazy var versionLabel = MKOutlinedLabelNode(fontNamed: "KongtextRegular", fontSize: 8).then {
         $0.name = "versionLabel"
-        $0.position = CGPoint(x: SettingsPositions.toggleOffX + (SettingsPositions.toggleOnX - SettingsPositions.toggleOffX) / 2, y: SettingsPositions.soundToggleY + 20)
+        $0.position = CGPoint(x: 12, y: SettingsPositions.soundToggleY + 20)
         $0.zPosition = 3
         $0.fontColor = UIColor.white
         $0.borderColor = UIColor.black
