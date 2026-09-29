@@ -14,6 +14,11 @@ struct DayStats: Codable, Equatable {
     var games: Int
     var pipes: Int
     var best: Int
+
+    /// Deterministic merge winner: more games, then more pipes, then higher best.
+    func beats(_ other: DayStats) -> Bool {
+        (games, pipes, best) > (other.games, other.pipes, other.best)
+    }
 }
 
 struct PeriodStats {
@@ -47,6 +52,7 @@ enum GameStats {
     static let dayFormatter = DateFormatter().then {
         $0.locale = Locale(identifier: "en_US_POSIX")
         $0.calendar = Calendar(identifier: .gregorian)
+        $0.timeZone = .autoupdatingCurrent
         $0.dateFormat = "yyyy-MM-dd"
     }
 
@@ -87,14 +93,14 @@ enum GameStats {
         case .all: interval = nil
         }
 
+        // "yyyy-MM-dd" sorts as text, so compare keys; end is exclusive.
+        // (Parsing keys back to dates drops days whose midnight a DST change skips.)
+        let range = interval.map { (dayFormatter.string(from: $0.start), dayFormatter.string(from: $0.end)) }
         var games = 0, pipes = 0, best = 0
 
         for (key, day) in loadDays() {
-            if let interval {
-                guard let date = dayFormatter.date(from: key),
-                      interval.contains(date) else {
-                    continue
-                }
+            if let (start, end) = range, !(key >= start && key < end) {
+                continue
             }
             games += day.games
             pipes += day.pipes
@@ -121,11 +127,11 @@ enum Achievements {
         Achievement(id: "first", title: "FIRST PIPE", detail: "SCORE 1"),
         Achievement(id: "ten", title: "TEN", detail: "SCORE 10"),
         Achievement(id: "quarter", title: "QUARTER", detail: "SCORE 25"),
+        Achievement(id: "platinum", title: "PLATINUM", detail: "SCORE 40"),
         Achievement(id: "fifty", title: "FIFTY", detail: "SCORE 50"),
         Achievement(id: "century", title: "CENTURY", detail: "SCORE 100"),
         Achievement(id: "nightOwl", title: "NIGHT OWL", detail: "20 AT NIGHT"),
         Achievement(id: "rainbow", title: "RAINBOW", detail: "FLY EVERY BIRD"),
-        Achievement(id: "platinum", title: "PLATINUM", detail: "SCORE 40"),
     ]
 
     static func earned() -> Set<String> {

@@ -9,8 +9,9 @@
 //  - bestScore: the higher value wins.
 //  - bestRuns: both lists combined, duplicates dropped, a dateless row
 //    dropped when a dated row has the same score, sorted, top 10 kept.
-//  - dayStats: per day, the record with more games wins (two phones playing
-//    on the same day under-count; accepted).
+//  - dayStats: per day, the record with more games wins, ties broken by
+//    pipes then best (two phones playing on the same day under-count;
+//    accepted).
 //  - achievements, birdsPlayed: union.
 //
 import Foundation
@@ -69,7 +70,9 @@ enum CloudSync {
         let cloudDays = decodeDays(store.data(forKey: GameStats.daysKey))
         var days = localDays
         for (key, cloudDay) in cloudDays {
-            if let localDay = days[key], localDay.games >= cloudDay.games {
+            // Same winner on every phone (games, then pipes, then best), so
+            // two phones never keep overwriting each other.
+            if let localDay = days[key], !cloudDay.beats(localDay) {
                 continue
             }
             days[key] = cloudDay

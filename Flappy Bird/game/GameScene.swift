@@ -1107,7 +1107,8 @@ final class GameScene: SKScene {
         }
     }
 
-    /// Title or game-over screen with the menu row showing (no panel open).
+    /// Launch title screen with the menu row showing (no panel open). Not the
+    /// game-over screen: the dead bird keeps its look there.
     private var isOnMenu: Bool {
         !isWaitingToStart && playButton.parent != nil && playButton.xScale > 1
             && !isGameOver
@@ -1878,6 +1879,9 @@ final class GameScene: SKScene {
 
     // MARK: Sky and Theme
 
+    /// What refreshTheme last applied; new pipes match it without a trait lookup.
+    private var nightShown = false
+
     /// Night when Dark Mode is on and the phone is in dark appearance.
     private var isNight: Bool {
         darkMode && view?.traitCollection.userInterfaceStyle == .dark
@@ -1888,6 +1892,7 @@ final class GameScene: SKScene {
     /// and by GameViewController when the phone's appearance changes.
     func refreshTheme() {
         let night = isNight
+        nightShown = night
 
         backgroundColor = night ? Self.nightSkyTop : Self.daySkyTop
 
@@ -2055,7 +2060,7 @@ final class GameScene: SKScene {
     ) -> SKSpriteNode {
         SKSpriteNode(texture: texture).then {
             $0.name = name
-            applyPipeLook(to: $0, night: isNight)
+            applyPipeLook(to: $0, night: nightShown)
             $0.setScale(Constants.pipeScale)
             $0.position = position
 
@@ -2138,6 +2143,10 @@ final class GameScene: SKScene {
         bird.physicsBody?.collisionBitMask =
             PhysicsCategory.land
         bird.physicsBody?.isDynamic = true
+
+        // A milestone flash in progress would freeze mid-tint once the world
+        // stops; clear it on the bird, the score and the pipes.
+        clearMilestoneTint()
 
         // X eyes: the dead frame replaces the flapping animation.
         bird.removeAction(forKey: "birdAnimation")
@@ -2265,6 +2274,7 @@ final class GameScene: SKScene {
         resultNode.removeFromParent()
         gameOverNode.removeFromParent()
         graveNode.removeFromParent()
+        clearMilestoneTint()
 
         refreshTheme()
 
@@ -2357,7 +2367,10 @@ final class GameScene: SKScene {
 
     /// 10, 25, 50, 100, then every 100.
     private static func isMilestone(_ score: Int) -> Bool {
-        [10, 25, 50].contains(score) || (score >= 100 && score % 100 == 0)
+        switch score {
+        case 10, 25, 50: return true
+        default: return score >= 100 && score % 100 == 0
+        }
     }
 
     /// Score and bird flash gold for about a second; from 50 up the pipes on
@@ -2399,16 +2412,30 @@ final class GameScene: SKScene {
         }
     }
 
-    private func enableSuperBird() {
-        for index in 0...2 {
-            birdTextures[index] =
-                Assets.shared.sprites.textureNamed(
-                    "super-bird-\(index + 1)"
-                ).then {
-                    $0.filteringMode = .nearest
-                }
+    private func clearMilestoneTint() {
+        for node in [bird, scoreLabelNodeInside] as [SKNode] {
+            node.removeAction(forKey: "milestone")
         }
+        bird.colorBlendFactor = 0
+        scoreLabelNodeInside.colorBlendFactor = 0
 
+        for group in pipes.children {
+            for case let pipe as SKSpriteNode in group.children {
+                pipe.removeAction(forKey: "milestone")
+                pipe.colorBlendFactor = 0
+            }
+        }
+    }
+
+    /// Looked up once; the switch happens inside the scoring contact callback.
+    private let superBirdTextures = (1...3).map {
+        Assets.shared.sprites.textureNamed("super-bird-\($0)").then {
+            $0.filteringMode = .nearest
+        }
+    }
+
+    private func enableSuperBird() {
+        birdTextures = superBirdTextures
         applyBirdAnimation()
     }
 
