@@ -29,6 +29,8 @@
 		DD898B16245CD23A00478094 /* GameScene.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD898B12245CD23A00478094 /* GameScene.swift */; };
 		DD898B18245CD26600478094 /* fonts in Resources */ = {isa = PBXBuildFile; fileRef = DD898B17245CD26600478094 /* fonts */; };
 		DD898B1A245CD2C200478094 /* Actions.sks in Resources */ = {isa = PBXBuildFile; fileRef = DD898B19245CD2C100478094 /* Actions.sks */; };
+		C1A5B0F82E8A000100F1A001 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = C1A5B0F72E8A000100F1A001 /* PrivacyInfo.xcprivacy */; };
+		C1A5B0FA2E8A000100F1A001 /* LICENSE in Resources */ = {isa = PBXBuildFile; fileRef = C1A5B0F92E8A000100F1A001 /* LICENSE */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXCopyFilesBuildPhase section */
@@ -57,6 +59,8 @@
 		DD237709245B73B500B570A3 /* GameViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameViewController.swift; sourceTree = "<group>"; };
 		DD23770C245B73B500B570A3 /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; name = Base; path = Base.lproj/Main.storyboard; sourceTree = "<group>"; };
 		DD23770E245B73B700B570A3 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		C1A5B0F72E8A000100F1A001 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
+		C1A5B0F92E8A000100F1A001 /* LICENSE */ = {isa = PBXFileReference; lastKnownFileType = text; path = LICENSE; sourceTree = SOURCE_ROOT; };
 		DD237711245B73B700B570A3 /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; name = Base; path = Base.lproj/LaunchScreen.storyboard; sourceTree = "<group>"; };
 		DD237713245B73B700B570A3 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; name = Info.plist; path = "Flappy Bird/Info.plist"; sourceTree = SOURCE_ROOT; };
 		DD676404246DF93D00632CA8 /* Reachability.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Reachability.swift; sourceTree = "<group>"; };
@@ -165,6 +169,8 @@
 				DD23770E245B73B700B570A3 /* Assets.xcassets */,
 				DD237710245B73B700B570A3 /* LaunchScreen.storyboard */,
 				DD237713245B73B700B570A3 /* Info.plist */,
+				C1A5B0F72E8A000100F1A001 /* PrivacyInfo.xcprivacy */,
+				C1A5B0F92E8A000100F1A001 /* LICENSE */,
 			);
 			path = "Flappy Bird";
 			sourceTree = "<group>";
@@ -257,6 +263,8 @@
 				DD237712245B73B700B570A3 /* LaunchScreen.storyboard in Resources */,
 				DD898B14245CD23A00478094 /* GameScene.sks in Resources */,
 				DD898B18245CD26600478094 /* fonts in Resources */,
+				C1A5B0F82E8A000100F1A001 /* PrivacyInfo.xcprivacy in Resources */,
+				C1A5B0FA2E8A000100F1A001 /* LICENSE in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -434,7 +442,7 @@
 				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_ENTITLEMENTS = "Flappy Bird/Flappy Bird.entitlements";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				DEVELOPMENT_TEAM = B326E26U8Q;
 				ENABLE_BITCODE = NO;
 				INFOPLIST_FILE = "Flappy Bird/Info.plist";
@@ -452,13 +460,13 @@
 				PRODUCT_BUNDLE_IDENTIFIER = com.clarsen1010.flappybird;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
-				SUPPORTS_MACCATALYST = YES;
+				SUPPORTS_MACCATALYST = NO;
 				SWIFT_INSTALL_OBJC_HEADER = NO;
 				SWIFT_OBJC_BRIDGING_HEADER = "";
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 				SWIFT_PRECOMPILE_BRIDGING_HEADER = NO;
 				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
+				TARGETED_DEVICE_FAMILY = 1;
 			};
 			name = Debug;
 		};
@@ -469,7 +477,7 @@
 				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_ENTITLEMENTS = "Flappy Bird/Flappy Bird.entitlements";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				DEVELOPMENT_TEAM = B326E26U8Q;
 				ENABLE_BITCODE = NO;
 				INFOPLIST_FILE = "Flappy Bird/Info.plist";
@@ -487,12 +495,12 @@
 				PRODUCT_BUNDLE_IDENTIFIER = com.clarsen1010.flappybird;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
-				SUPPORTS_MACCATALYST = YES;
+				SUPPORTS_MACCATALYST = NO;
 				SWIFT_INSTALL_OBJC_HEADER = NO;
 				SWIFT_OBJC_BRIDGING_HEADER = "";
 				SWIFT_PRECOMPILE_BRIDGING_HEADER = NO;
 				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
+				TARGETED_DEVICE_FAMILY = 1;
 			};
 			name = Release;
 		};
