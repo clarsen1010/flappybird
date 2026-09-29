@@ -13,7 +13,10 @@ struct BestRun: Codable, Equatable {
 }
 
 enum BestRuns {
-    static let shownCount = 5
+    static let shownCount = 6
+
+    /// The run recorded at the end of the last round, highlighted on the board.
+    static var lastRecorded: BestRun?
 
     private static let key = "bestRuns"
     static let keptCount = 10
@@ -33,12 +36,16 @@ enum BestRuns {
     /// Call before ResultBoard saves a new best, so the seed above is the
     /// previous best rather than this run.
     static func record(_ score: Int) {
+        lastRecorded = nil
+
         guard score > 0 else {
             return
         }
 
         var runs = load()
-        runs.append(BestRun(score: score, date: Date()))
+        let run = BestRun(score: score, date: Date())
+        lastRecorded = run
+        runs.append(run)
 
         if let data = try? JSONEncoder().encode(Array(sorted(runs).prefix(keptCount))) {
             UserDefaults.standard.set(data, forKey: key)
@@ -56,6 +63,8 @@ enum BestRuns {
     }
 }
 
+/// Best Runs, Stats and two Goals pages in one panel. The right arrow on the
+/// title row flips pages; the left arrow closes the panel.
 class BestRunsPanel: SKNode {
 
     private enum Layout {
@@ -63,14 +72,30 @@ class BestRunsPanel: SKNode {
         static let topHeight: CGFloat = 10
         static let rowHeight: CGFloat = 32
         static let bottomHeight: CGFloat = 14
-        static let rowCount = BestRuns.shownCount + 1 // title + runs
+        static let rowCount = BestRuns.shownCount + 1 // title + rows
 
         static let height = topHeight + rowHeight * CGFloat(rowCount) + bottomHeight
         static let top = height / 2
 
-        static let rankX: CGFloat = -70
-        static let scoreX: CGFloat = -10
-        static let dateX: CGFloat = 60
+        static let rankX: CGFloat = -80
+        static let scoreX: CGFloat = -40
+        static let dateX: CGFloat = 35
+        static let newX: CGFloat = 90
+
+        static let goalsPerPage = 4
+    }
+
+    private enum Page: Int, CaseIterable {
+        case runs, stats, goals1, goals2
+
+        var title: String {
+            switch self {
+            case .runs: return "BEST RUNS"
+            case .stats: return "STATS"
+            case .goals1: return "GOALS 1/2"
+            case .goals2: return "GOALS 2/2"
+            }
+        }
     }
 
     private static let labelColor = UIColor(red: 252 / 255, green: 120 / 255, blue: 88 / 255, alpha: 1)
@@ -87,6 +112,15 @@ class BestRunsPanel: SKNode {
         $0.dateFormat = "h:mm a"
     }
 
+    /// Each goal reuses a medal from the result board.
+    private static let goalMedals = [
+        "first": "copper-medal", "ten": "copper-medal", "quarter": "silver-medal",
+        "fifty": "gold-medal", "century": "platinum-medal", "nightOwl": "silver-medal",
+        "rainbow": "gold-medal", "platinum": "platinum-medal",
+    ]
+
+    private var page = Page.runs
+    private let titleNode = SKNode()
     private let rowsNode = SKNode()
 
     lazy var backButton = SKSpriteNode(texture: SKTexture(imageNamed: "back-button").then { $0.filteringMode = .nearest }).then {
@@ -102,13 +136,29 @@ class BestRunsPanel: SKNode {
         $0.size = CGSize(width: 30, height: 30)
     }
 
+    lazy var nextButton = SKSpriteNode(texture: SKTexture(imageNamed: "back-button").then { $0.filteringMode = .nearest }).then {
+        $0.position = CGPoint(x: 92, y: rowCenterY(0))
+        $0.xScale = -1
+        $0.zPosition = 1
+    }
+
+    lazy var nextButtonTouchBox = SKSpriteNode().then {
+        $0.name = "bestRunsNext"
+        $0.zPosition = 2
+        $0.position = nextButton.position
+        $0.color = UIColor.clear
+        $0.size = CGSize(width: 30, height: 30)
+    }
+
     override init() {
         super.init()
 
         addPanelBackground()
         addChild(backButton)
         addChild(backButtonTouchBox)
-        addChild(makeLabel("BEST RUNS", size: 12, x: 8, y: rowCenterY(0)))
+        addChild(nextButton)
+        addChild(nextButtonTouchBox)
+        addChild(titleNode)
         addChild(rowsNode)
 
         reload()
@@ -118,9 +168,31 @@ class BestRunsPanel: SKNode {
         fatalError("init(coder:) has not been implemented")
     }
 
+    /// Opens on Best Runs.
     func reload() {
+        page = .runs
+        showPage()
+    }
+
+    func nextPage() {
+        page = Page(rawValue: (page.rawValue + 1) % Page.allCases.count) ?? .runs
+        showPage()
+    }
+
+    private func showPage() {
+        titleNode.removeAllChildren()
+        titleNode.addChild(makeLabel(page.title, size: 12, x: 0, y: rowCenterY(0)))
         rowsNode.removeAllChildren()
 
+        switch page {
+        case .runs: showRuns()
+        case .stats: showStats()
+        case .goals1: showGoals(Array(Achievements.all.prefix(Layout.goalsPerPage)))
+        case .goals2: showGoals(Array(Achievements.all.dropFirst(Layout.goalsPerPage)))
+        }
+    }
+
+    private func showRuns() {
         let runs = Array(BestRuns.load().prefix(BestRuns.shownCount))
 
         guard !runs.isEmpty else {
@@ -141,6 +213,63 @@ class BestRunsPanel: SKNode {
             } else {
                 rowsNode.addChild(makeLabel("--", size: 10, x: Layout.dateX, y: y))
             }
+
+            // The run you just played.
+            if run == BestRuns.lastRecorded {
+                rowsNode.addChild(SKSpriteNode(texture: Assets.shared.sprites.textureNamed("new").then { $0.filteringMode = .nearest }).then {
+                    $0.position = CGPoint(x: Layout.newX, y: y)
+                    $0.setScale(0.75)
+                    $0.zPosition = 1
+                })
+            }
+        }
+    }
+
+    private func showStats() {
+        let columns: [(String, CGFloat)] = [("BEST", -10), ("AVG", 40), ("GAMES", 88)]
+
+        for (title, x) in columns {
+            rowsNode.addChild(makeLabel(title, size: 8, x: x, y: rowCenterY(1)))
+        }
+
+        for (index, period) in StatsPeriod.allCases.enumerated() {
+            let y = rowCenterY(index + 2)
+            let stats = GameStats.summary(period)
+
+            rowsNode.addChild(makeLabel(period.title, size: 8, x: -78, y: y))
+            rowsNode.addChild(makeScoreLabel("\(stats.best)", x: columns[0].1, y: y))
+            rowsNode.addChild(makeLabel(String(format: "%.1f", stats.average), size: 10, x: columns[1].1, y: y))
+            rowsNode.addChild(makeLabel("\(stats.games)", size: 10, x: columns[2].1, y: y))
+        }
+
+        let all = GameStats.summary(.all)
+        rowsNode.addChild(makeLabel("PIPES PASSED \(all.pipes)", size: 8, x: 0, y: rowCenterY(6)))
+    }
+
+    private func showGoals(_ goals: [Achievement]) {
+        let earned = Achievements.earned()
+
+        for (index, goal) in goals.enumerated() {
+            let y = rowCenterY(index + 1)
+            let done = earned.contains(goal.id)
+
+            let medal = SKSpriteNode(texture: Assets.shared.sprites.textureNamed(Self.goalMedals[goal.id] ?? "copper-medal").then { $0.filteringMode = .nearest }).then {
+                $0.position = CGPoint(x: -85, y: y)
+                $0.setScale(0.55)
+                $0.zPosition = 1
+                if !done {
+                    // Greyed out until earned.
+                    $0.color = .gray
+                    $0.colorBlendFactor = 1
+                    $0.alpha = 0.4
+                }
+            }
+            rowsNode.addChild(medal)
+
+            let text = SKNode().then { $0.alpha = done ? 1 : 0.45 }
+            text.addChild(makeLabel(goal.title, size: 10, x: 5, y: y + 6))
+            text.addChild(makeLabel(goal.detail, size: 8, x: 5, y: y - 7))
+            rowsNode.addChild(text)
         }
     }
 

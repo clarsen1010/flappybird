@@ -86,7 +86,10 @@ final class GameScene: SKScene {
     // MARK: Constants
 
     private enum Constants {
-        static let superScore = 1000
+        // Reachable, and not on a gold milestone (100, 200, ...).
+        static let superScore = 250
+
+        static let milestoneGold = UIColor(red: 1, green: 0.78, blue: 0.05, alpha: 1)
 
         static let gravity = CGVector(dx: 0, dy: -12)
 
@@ -340,6 +343,35 @@ final class GameScene: SKScene {
         $0.zPosition = GameZPosition.score + 1
     }
 
+    /// "BEST 42" under the logo on the title screen; hidden until there is a best.
+    private lazy var bestTitleNode = SKNode().then {
+        $0.position = CGPoint(x: width / 2, y: height / 2 + 138)
+        $0.zPosition = GameZPosition.score
+        $0.addChild(bestTitleInside)
+        $0.addChild(bestTitleOutline)
+    }
+
+    private lazy var bestTitleOutline = SKLabelNode(fontNamed: "04b_19").then {
+        $0.fontColor = .black
+        $0.fontSize = 24
+        $0.verticalAlignmentMode = .center
+        $0.zPosition = 1
+    }
+
+    private lazy var bestTitleInside = SKLabelNode(fontNamed: "inside").then {
+        $0.fontColor = .white
+        $0.fontSize = 24
+        $0.verticalAlignmentMode = .center
+        $0.position = CGPoint(x: -0.75, y: 0)
+    }
+
+    private func refreshBestTitle() {
+        let best = ResultBoard.bestScore()
+        bestTitleOutline.text = "BEST \(best)"
+        bestTitleInside.text = "BEST \(best)"
+        bestTitleNode.isHidden = best == 0
+    }
+
     private lazy var scoreLabelNodeInside = SKLabelNode(
         fontNamed: "inside"
     ).then {
@@ -468,7 +500,14 @@ final class GameScene: SKScene {
         ScreenData.shared.width = width
 
         addChild(flappyBird)
+        refreshBestTitle()
+        addChild(bestTitleNode)
         addChild(moving)
+
+        // iCloud can bring back a higher best after launch.
+        CloudSync.onChange = { [weak self] in
+            self?.refreshBestTitle()
+        }
 
         moving.addChild(pipes)
 
@@ -1032,6 +1071,9 @@ final class GameScene: SKScene {
         case "bestRunsBack":
             handleBestRunsBack()
 
+        case "bestRunsNext":
+            handleBestRunsNext()
+
         case "toggleSounds":
             handleSoundToggle()
 
@@ -1048,8 +1090,20 @@ final class GameScene: SKScene {
             handleSettingsBack()
 
         default:
+            // On the menu, tapping the bird switches birds like the picker.
+            if isOnMenu, hypot(location.x - bird.position.x, location.y - bird.position.y) < 45 {
+                handleBirdPickerTap()
+                return
+            }
+
             handleGameTap()
         }
+    }
+
+    /// Title or game-over screen with the menu row showing (no panel open).
+    private var isOnMenu: Bool {
+        !isWaitingToStart && playButton.parent != nil && playButton.xScale > 1
+            && !isGameOver
     }
 
     public func keyboardFlapp() {
@@ -1313,6 +1367,7 @@ final class GameScene: SKScene {
         )
 
         flappyBird.removeFromParent()
+        bestTitleNode.removeFromParent()
 
         startIdleAnimation()
     }
@@ -1624,6 +1679,20 @@ final class GameScene: SKScene {
                 self?.unlockButtons()
             }
         )
+    }
+
+    private func handleBestRunsNext() {
+        guard !Self.hitButton else {
+            return
+        }
+
+        playSound(swooshSound)
+
+        if haptics {
+            impactFeedback.impactOccurred()
+        }
+
+        bestRunsNode.nextPage()
     }
 
     private func hideBestRuns() {
@@ -2267,6 +2336,10 @@ final class GameScene: SKScene {
 
         playSound(pointSound)
 
+        if Self.isMilestone(score) {
+            celebrateMilestone()
+        }
+
         scaleTwice(
             node: scoreLabelNode,
             firstScale: 1.5,
@@ -2282,6 +2355,53 @@ final class GameScene: SKScene {
             secondScale: 1,
             secondScaleDuration: 0.1
         )
+    }
+
+    /// 10, 25, 50, 100, then every 100.
+    private static func isMilestone(_ score: Int) -> Bool {
+        [10, 25, 50].contains(score) || (score >= 100 && score % 100 == 0)
+    }
+
+    /// Score and bird flash gold for about a second; from 50 up the pipes on
+    /// screen flash too. Tint actions only; nothing is created per point.
+    private func celebrateMilestone() {
+        let gold = Constants.milestoneGold
+        let flash = SKAction.sequence([
+            .colorize(with: gold, colorBlendFactor: 1, duration: 0.08),
+            .wait(forDuration: 0.6),
+            .colorize(withColorBlendFactor: 0, duration: 0.4)
+        ])
+
+        scoreLabelNodeInside.run(flash, withKey: "milestone")
+
+        bird.run(
+            .sequence([
+                .colorize(with: gold, colorBlendFactor: 0.65, duration: 0.08),
+                .wait(forDuration: 0.6),
+                .colorize(withColorBlendFactor: 0, duration: 0.4)
+            ]),
+            withKey: "milestone"
+        )
+
+        guard score >= 50 else {
+            return
+        }
+
+        // Fade straight back to the pipe's own day/night tint.
+        let settle: SKAction = isNight && Self.nightLook == .tinted
+            ? .colorize(with: Self.nightTint, colorBlendFactor: Self.nightTintFactor, duration: 0.3)
+            : .colorize(withColorBlendFactor: 0, duration: 0.3)
+        let pipeFlash = SKAction.sequence([
+            .colorize(with: gold, colorBlendFactor: 0.6, duration: 0.08),
+            .wait(forDuration: 0.5),
+            settle
+        ])
+
+        for group in pipes.children {
+            for case let pipe as SKSpriteNode in group.children {
+                pipe.run(pipeFlash, withKey: "milestone")
+            }
+        }
     }
 
     private func enableSuperBird() {

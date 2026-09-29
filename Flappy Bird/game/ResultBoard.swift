@@ -142,19 +142,15 @@ public class ResultBoard: SKSpriteNode {
             }
             run(.sequence([countUp, finish]), withKey: "countUp")
 
-            // Medal is relative to the best score *before* this round (the
-            // author's rule): platinum means you doubled your previous best.
-            let medalTexture = finalScore == 0 ? SKTexture() : Assets.shared.sprites.textureNamed(
-                finalScore < previousHighScore / 2 ? "copper-medal" :
-                finalScore < previousHighScore ? "silver-medal" :
-                finalScore < previousHighScore * 2 ? "gold-medal" : "platinum-medal"
-            )
+            // Classic medals: bronze 10, silver 20, gold 30, platinum 40.
+            let medalName = ResultBoard.medalName(for: finalScore)
+            let medalTexture = medalName.map { Assets.shared.sprites.textureNamed($0) } ?? SKTexture()
             medalTexture.filteringMode = .nearest
             medal.run(SKAction.setTexture(medalTexture, resize: true))
 
             sparkle.setScale(0)
             sparkle.removeAllActions()
-            if finalScore > 0 {
+            if medalName != nil {
                 sparkle.run(sparkleAction)
             }
         }
@@ -182,6 +178,17 @@ private final class CountUpProgress {
 }
 
 public extension ResultBoard {
+    /// nil below 10: no medal.
+    class func medalName(for score: Int) -> String? {
+        switch score {
+        case ..<10: return nil
+        case ..<20: return "copper-medal"
+        case ..<30: return "silver-medal"
+        case ..<40: return "gold-medal"
+        default: return "platinum-medal"
+        }
+    }
+
     class func bestScore() -> Int {
         return UserDefaults.standard.integer(forKey: "bestScore")
     }
