@@ -29,7 +29,9 @@ class GameViewController: UIViewController {
             // ProMotion: let SpriteKit render at up to 120 Hz (needs
             // CADisableMinimumFrameDurationOnPhone in Info.plist).
             $0.preferredFramesPerSecond = 120
-            $0.showsFPS = false
+            // Launch with -showFPS to see the real frame rate; normal
+            // launches never show it.
+            $0.showsFPS = ProcessInfo.processInfo.arguments.contains("-showFPS")
             $0.showsNodeCount = false
         }
     }
