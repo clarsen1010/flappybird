@@ -21,8 +21,7 @@ class LoadingViewController: UIViewController {
         super.viewDidLoad()
         print("Showing launch screen")
         infoLabel.text = """
-Flappy Bird \(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as! String)
-iPhone 18 Pro edition
+Flappy Bird \(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as! String) Edition
 by Christian Larsen
 
 Original game © 2019 - \(Calendar.current.component(.year, from: Date()))

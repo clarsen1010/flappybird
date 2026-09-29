@@ -1988,10 +1988,11 @@ final class GameScene: SKScene {
         isGameOver = true
         playFlapSound = false
 
+        // The shake is part of the death look; only the buzz follows Haptics.
+        shakeScreen()
         if haptics {
             notificationFeedback.notificationOccurred(.error)
             deathFeedback.impactOccurred()
-            shakeScreen()
         }
 
         flashScreen(

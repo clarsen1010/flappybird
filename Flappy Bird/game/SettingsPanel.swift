@@ -51,7 +51,11 @@ class SettingsPanel: SKSpriteNode {
         $0.borderColor = UIColor.black
         $0.borderWidth = 1
         $0.borderOffset = CGPoint(x: 0, y: 0)
-        $0.outlinedText = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String
+        // FBBuildStamp is the commit (or TEST) that install.sh passes in; empty from Xcode.
+        let info = Bundle.main.infoDictionary
+        let version = info?["CFBundleShortVersionString"] as? String ?? ""
+        let stamp = info?["FBBuildStamp"] as? String ?? ""
+        $0.outlinedText = stamp.isEmpty ? version : "\(version) \(stamp)"
     }
     
     lazy var backButton = SKSpriteNode(texture: SKTexture(imageNamed: "back-button").then { $0.filteringMode = .nearest }).then {
