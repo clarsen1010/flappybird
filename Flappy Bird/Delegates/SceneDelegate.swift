@@ -26,6 +26,7 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
     }
 
     func sceneDidBecomeActive(_ scene: UIScene) {
+        activateAudioSession("becameActive")
     }
 
     func sceneWillResignActive(_ scene: UIScene) {

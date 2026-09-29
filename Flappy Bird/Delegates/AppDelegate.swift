@@ -24,18 +24,23 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
 
         // Assets.shared.preloadAssets()
 
-        // Game sounds follow the volume slider, not the Silent switch (the
-        // owner's preference), and mix with any music or podcast playing.
-        do {
-            try AVAudioSession.sharedInstance().setCategory(
-                .playback,
-                options: [.mixWithOthers]
-            )
-            try AVAudioSession.sharedInstance().setActive(true)
-        } catch {
-            logAudioSession("launch", error: error)
+        activateAudioSession("launch")
+
+        // A call, Siri or an alarm deactivates the session; turn it back on
+        // when the interruption ends so sounds do not stay silent.
+        NotificationCenter.default.addObserver(
+            forName: AVAudioSession.interruptionNotification,
+            object: AVAudioSession.sharedInstance(),
+            queue: .main
+        ) { note in
+            guard
+                let raw = note.userInfo?[AVAudioSessionInterruptionTypeKey] as? UInt,
+                AVAudioSession.InterruptionType(rawValue: raw) == .ended
+            else {
+                return
+            }
+            activateAudioSession("interruptionEnded")
         }
-        logAudioSession("launch")
 
         // SentrySDK.start { options in
         //     options.dsn = "..."
@@ -66,6 +71,23 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     ) {
         // Called when the user discards a scene session.
     }
+}
+
+/// Game sounds follow the volume slider, not the Silent switch (the owner's
+/// preference), and mix with any music or podcast playing. Called at launch,
+/// on every return to the foreground and after an interruption, because the
+/// session set once at launch does not stay active on its own.
+func activateAudioSession(_ context: String) {
+    do {
+        try AVAudioSession.sharedInstance().setCategory(
+            .playback,
+            options: [.mixWithOthers]
+        )
+        try AVAudioSession.sharedInstance().setActive(true)
+    } catch {
+        logAudioSession(context, error: error)
+    }
+    logAudioSession(context)
 }
 
 /// Sound diagnostics (Debug builds only): prints the audio session state so a
