@@ -132,6 +132,11 @@ final class GameScene: SKScene {
         case recolored
     }
 
+    // The sky art's flat top color. The scene background matches it, so a
+    // lowered sky (groundDrop) leaves no visible strip above it.
+    private static let daySkyTop = UIColor(red: 78 / 255, green: 192 / 255, blue: 202 / 255, alpha: 1)
+    private static let nightSkyTop = UIColor(red: 0, green: 135 / 255, blue: 147 / 255, alpha: 1)
+
     private static let nightLook = NightLook.tinted
     private static let nightTint = UIColor(red: 0.10, green: 0.14, blue: 0.36, alpha: 1)
     private static let nightTintFactor: CGFloat = 0.45
@@ -1801,6 +1806,8 @@ final class GameScene: SKScene {
     /// and by GameViewController when the phone's appearance changes.
     func refreshTheme() {
         let night = isNight
+
+        backgroundColor = night ? Self.nightSkyTop : Self.daySkyTop
 
         for node in skyNodes {
             node.texture = night ? nightTexture : dayTexture
