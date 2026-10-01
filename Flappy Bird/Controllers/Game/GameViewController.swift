@@ -18,6 +18,13 @@ class GameViewController: UIViewController {
     override var shouldAutorotate: Bool { false }
     override var prefersStatusBarHidden: Bool { true }
     override var canBecomeFirstResponder: Bool { true }
+
+    /// Taps in the bottom strip of the screen reached the game about 75 ms
+    /// late (89 ms against 16 anywhere else, measured on his phone): iOS
+    /// holds them while it decides whether a swipe home is starting. This
+    /// gives the game those touches at once. The cost is the usual one for
+    /// games: the first swipe up only shows the Home bar, the second leaves.
+    override var preferredScreenEdgesDeferringSystemGestures: UIRectEdge { [.bottom] }
     
     lazy var scene = GameScene(fileNamed: "GameScene")?.then {
         $0.scaleMode = .aspectFill
@@ -70,6 +77,7 @@ class GameViewController: UIViewController {
     override func viewIsAppearing(_ animated: Bool) {
         super.viewIsAppearing(animated)
         scene?.refreshTheme()
+        setNeedsUpdateOfScreenEdgesDeferringSystemGestures()
     }
     
     override func pressesBegan(_ presses: Set<UIPress>, with event: UIPressesEvent?) {

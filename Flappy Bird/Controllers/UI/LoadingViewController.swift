@@ -17,6 +17,11 @@ class LoadingViewController: UIViewController {
     // Match the game screen; without this the status bar flashes during load.
     override var prefersStatusBarHidden: Bool { true }
 
+    // This screen stays underneath the game as the window's root, and iOS
+    // asks the root which screen edges should give touches to the app
+    // first. See GameViewController for why the bottom edge does.
+    override var preferredScreenEdgesDeferringSystemGestures: UIRectEdge { [.bottom] }
+
     override func viewDidLoad() {
         super.viewDidLoad()
         print("Showing launch screen")
