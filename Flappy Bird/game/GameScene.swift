@@ -223,6 +223,9 @@ final class GameScene: SKScene {
     private let notificationFeedback = UINotificationFeedbackGenerator()
     private let deathFeedback = UIImpactFeedbackGenerator(style: .heavy)
     private let flapFeedback = UIImpactFeedbackGenerator(style: .light)
+    /// Softer than the flap tick, so a point never feels like a tap he
+    /// did not make.
+    private let scoreFeedback = UIImpactFeedbackGenerator(style: .soft)
 
     // MARK: Sounds
 
@@ -958,6 +961,8 @@ final class GameScene: SKScene {
 
         if haptics {
             flapFeedback.impactOccurred()
+            // Keeps the engine ready so the next tick lands with the tap.
+            flapFeedback.prepare()
         }
     }
 
@@ -1136,6 +1141,7 @@ final class GameScene: SKScene {
 
         if haptics {
             flapFeedback.prepare()
+            scoreFeedback.prepare()
         }
 
         flapBird()
@@ -2326,7 +2332,8 @@ final class GameScene: SKScene {
         }
 
         if haptics {
-            impactFeedback.impactOccurred()
+            scoreFeedback.impactOccurred(intensity: 0.5)
+            scoreFeedback.prepare()
         }
 
         playSound(pointSound)
