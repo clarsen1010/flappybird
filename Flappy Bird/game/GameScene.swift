@@ -2172,6 +2172,11 @@ final class GameScene: SKScene {
 
         moving.speed = 0
 
+        // The spawner runs on the scene, not on `moving`, so it kept adding
+        // one frozen pipe group a second for as long as the Game Over
+        // screen stayed up. startGame() starts it again.
+        removeAction(forKey: "pipeSpawner")
+
         bird.physicsBody?.velocity = .zero
         bird.physicsBody?.applyImpulse(
             CGVector(dx: 0, dy: 13)
