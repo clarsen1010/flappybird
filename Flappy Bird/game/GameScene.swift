@@ -212,6 +212,15 @@ final class GameScene: SKScene {
     private var haptics = true
     /// On: day or night follows the phone's appearance. Off: always day.
     private var darkMode = true
+    /// On: the beta play log is recorded (see GameLog).
+    private var logsOn = true
+
+    // For the play log: the last two frame times, and the last tap.
+    private var lastFrameTime: TimeInterval = 0
+    private var frameTimeBefore: TimeInterval = 0
+    private var lastTapTime: TimeInterval = 0
+    /// The first frame after a pause is as long as the pause; not a slow frame.
+    private var skipFrameLog = false
 
     private var skyNodes = [SKSpriteNode]()
     private var groundNodes = [SKSpriteNode]()
@@ -550,6 +559,11 @@ final class GameScene: SKScene {
             defaultValue: true
         )
 
+        logsOn = loadBoolSetting(
+            key: GameLog.settingKey,
+            defaultValue: true
+        )
+
         if let choice = UserDefaults.standard.string(forKey: "birdChoice"),
            Self.pickableBirds.contains(choice) {
             birdChoice = choice
@@ -605,6 +619,13 @@ final class GameScene: SKScene {
                 ? SettingsPositions.toggleOnX
                 : SettingsPositions.toggleOffX,
             y: SettingsPositions.darkModeToggleY
+        )
+
+        settingsNode.logsToggle.position = CGPoint(
+            x: logsOn
+                ? SettingsPositions.toggleOnX
+                : SettingsPositions.toggleOffX,
+            y: SettingsPositions.logsToggleY
         )
     }
 
@@ -730,9 +751,11 @@ final class GameScene: SKScene {
         SettingsPanel().then {
             $0.setScale(1.2)
             $0.zPosition = GameZPosition.resultText + 4
+            // 22 lower than before: the panel grew a row (LOGS) and its top
+            // edge stays where it was, clear of the title.
             $0.position = CGPoint(
                 x: width / 2,
-                y: height / 2 + 15
+                y: height / 2 - 7
             )
         }
     }
@@ -936,6 +959,7 @@ final class GameScene: SKScene {
         }
 
         guard bird.position.y < height + Constants.minimumBirdYOffset else {
+            GameLog.add(String(format: "flap ignored: bird above the screen (y=%.0f)", bird.position.y))
             return
         }
 
@@ -1006,6 +1030,16 @@ final class GameScene: SKScene {
     override func update(_ currentTime: TimeInterval) {
         let deltaTime = lastUpdateTime > 0 ?
             min(currentTime - lastUpdateTime, 1.0 / 30.0) : 1.0 / 60.0
+
+        // Play log: the real frame time, counted while a round is live.
+        frameTimeBefore = lastFrameTime
+        lastFrameTime = lastUpdateTime > 0 ? currentTime - lastUpdateTime : 0
+        if skipFrameLog {
+            skipFrameLog = false
+        } else if isRoundLive, lastFrameTime > 0 {
+            GameLog.frame(lastFrameTime)
+        }
+
         lastUpdateTime = currentTime
 
         guard !hasHitGround else {
@@ -1027,6 +1061,14 @@ final class GameScene: SKScene {
 
         let location = touch.location(in: self)
         let nodeName = atPoint(location).name
+
+        lastTapTime = CACurrentMediaTime()
+        GameLog.tap(
+            touch,
+            in: view,
+            fingers: event?.allTouches?.count ?? 1,
+            target: tapTarget(nodeName)
+        )
 
         switch nodeName {
         case "play":
@@ -1065,6 +1107,9 @@ final class GameScene: SKScene {
         case "toggleDarkMode":
             handleDarkModeToggle()
 
+        case "toggleLogs":
+            handleLogsToggle()
+
         case "settingsBack":
             handleSettingsBack()
 
@@ -1084,6 +1129,28 @@ final class GameScene: SKScene {
     private var isOnMenu: Bool {
         !isWaitingToStart && playButton.parent != nil && playButton.xScale > 1
             && !isGameOver
+    }
+
+    /// A round in flight: started, not dead, not paused.
+    private var isRoundLive: Bool {
+        !isWaitingToStart && !isGameOver && !isPausedByUser
+            && bird.physicsBody?.isDynamic == true
+    }
+
+    /// For the play log: what a tap landed on, or what the game will do with it.
+    private func tapTarget(_ nodeName: String?) -> String {
+        switch nodeName {
+        case "play", "pause", "resume", "settings", "birdPicker", "bestRuns",
+             "bestRunsBack", "bestRunsNext", "settingsBack",
+             "toggleSounds", "toggleNewBirds", "toggleHaptics",
+             "toggleDarkMode", "toggleLogs":
+            return nodeName ?? "?"
+        default:
+            if isPausedByUser { return "nothing (paused)" }
+            if isWaitingToStart { return "start" }
+            if isRoundLive { return "flap" }
+            return isGameOver ? "nothing (game over)" : "nothing (menu)"
+        }
     }
 
     public func keyboardFlapp() {
@@ -1138,6 +1205,11 @@ final class GameScene: SKScene {
         pipes.setScale(1)
 
         bird.physicsBody?.isDynamic = true
+
+        GameLog.roundStarted(
+            "theme=\(nightShown ? "night" : "day") bird=\(currentBirdColor)"
+                + " sound=\(playSounds ? "on" : "off") haptics=\(haptics ? "on" : "off")"
+        )
 
         if haptics {
             flapFeedback.prepare()
@@ -1218,6 +1290,7 @@ final class GameScene: SKScene {
 
         Self.hitButton = true
         isPausedByUser = true
+        GameLog.add(feedback ? "pause" : "pause (left the app)")
 
         // No swoosh here: a sound queued on the scene cannot start once
         // the scene is paused below, so it played late, on top of the
@@ -1278,6 +1351,8 @@ final class GameScene: SKScene {
 
         isPaused = false
         isPausedByUser = false
+        skipFrameLog = true
+        GameLog.add("resume")
 
         playSound(swooshSound)
 
@@ -1812,6 +1887,23 @@ final class GameScene: SKScene {
         refreshTheme()
     }
 
+    private func handleLogsToggle() {
+        playSound(swooshSound)
+
+        if haptics {
+            impactFeedback.impactOccurred()
+        }
+
+        toggle(
+            value: &logsOn,
+            key: GameLog.settingKey,
+            control: settingsNode.logsToggle,
+            y: SettingsPositions.logsToggleY
+        )
+
+        GameLog.setEnabled(logsOn)
+    }
+
     // MARK: Ground
 
     private func createGroundMovement() {
@@ -1870,6 +1962,9 @@ final class GameScene: SKScene {
     /// and by GameViewController when the phone's appearance changes.
     func refreshTheme() {
         let night = isNight
+        if night != nightShown {
+            GameLog.add("theme \(night ? "night" : "day")")
+        }
         nightShown = night
 
         backgroundColor = night ? Self.nightSkyTop : Self.daySkyTop
@@ -2261,6 +2356,8 @@ final class GameScene: SKScene {
                 }
             ])
         )
+
+        GameLog.roundEnded(score: score)
     }
 
     // MARK: Reset
@@ -2337,6 +2434,7 @@ final class GameScene: SKScene {
 
     private func handleScore() {
         score += 1
+        GameLog.add("point \(score)")
 
         if score == Constants.superScore {
             enableSuperBird()
@@ -2448,6 +2546,50 @@ final class GameScene: SKScene {
         gameOver()
     }
 
+    /// Play log: where the bird and the pipe were when they touched, so a
+    /// death that looked unfair can be checked. "gap" is the space left
+    /// between the bird's body and the pipe: about 0 for a real touch,
+    /// clearly above 0 if the game called a hit with air between them.
+    private func logPipeDeath(_ contact: SKPhysicsContact) {
+        guard GameLog.enabled else {
+            return
+        }
+
+        let pipeBody = contact.bodyA.categoryBitMask & PhysicsCategory.pipe != 0
+            ? contact.bodyA
+            : contact.bodyB
+
+        guard let pipe = pipeBody.node as? SKSpriteNode,
+              let group = pipe.parent else {
+            return
+        }
+
+        let centre = group.convert(pipe.position, to: self)
+        let halfWidth = pipe.size.width / 2
+        let halfHeight = pipe.size.height / 2
+        let radius = defaultBirdTexture.height * Constants.birdScale / 2
+
+        let dx = max(abs(bird.position.x - centre.x) - halfWidth, 0)
+        let dy = max(abs(bird.position.y - centre.y) - halfHeight, 0)
+        let lip = pipe.name == "pipeUp" ? centre.y + halfHeight : centre.y - halfHeight
+
+        GameLog.add(String(
+            format: "death PIPE (%@) score=%d bird=(%.1f,%.1f) vy=%.0f pipe x=%.1f..%.1f lip y=%.1f gap=%.1f frame=%.0fms before=%.0fms since tap=%.0fms",
+            pipe.name == "pipeUp" ? "bottom" : "top",
+            score, bird.position.x, bird.position.y,
+            bird.physicsBody?.velocity.dy ?? 0,
+            centre.x - halfWidth, centre.x + halfWidth, lip,
+            hypot(dx, dy) - radius,
+            lastFrameTime * 1000, frameTimeBefore * 1000,
+            millisecondsSinceTap
+        ))
+    }
+
+    /// -1 when no tap has happened yet.
+    private var millisecondsSinceTap: Double {
+        lastTapTime > 0 ? (CACurrentMediaTime() - lastTapTime) * 1000 : -1
+    }
+
     private func showGrave() {
         graveNode.removeAllActions()
         graveNode.removeFromParent()
@@ -2477,7 +2619,15 @@ final class GameScene: SKScene {
         bird.speed = 0.5
 
         if !isShowingGameOver {
+            GameLog.add(String(
+                format: "death GROUND score=%d bird=(%.1f,%.1f) frame=%.0fms before=%.0fms since tap=%.0fms",
+                score, bird.position.x, bird.position.y,
+                lastFrameTime * 1000, frameTimeBefore * 1000,
+                millisecondsSinceTap
+            ))
             gameOver()
+        } else {
+            GameLog.add("landed")
         }
 
         showGrave()
@@ -2528,6 +2678,7 @@ extension GameScene: SKPhysicsContactDelegate {
                 contact,
                 with: PhysicsCategory.pipe
             ) {
+            logPipeDeath(contact)
             handlePipeCollision()
             return
         }

@@ -12,13 +12,16 @@ struct SettingsPositions {
     static let toggleOnX: CGFloat = 68
     static let toggleOffX: CGFloat = 46
     
-    static let soundToggleY: CGFloat = 60
-    static let newBirdsToggleY: CGFloat = 24
-    static let hapticsToggleY: CGFloat = -12
-    static let darkModeToggleY: CGFloat = -56
+    // The panel art grew by one 36-point row for LOGS, so its centre moved
+    // down 18 and every row sits 18 higher than before.
+    static let soundToggleY: CGFloat = 78
+    static let newBirdsToggleY: CGFloat = 42
+    static let hapticsToggleY: CGFloat = 6
+    static let darkModeToggleY: CGFloat = -38
+    static let logsToggleY: CGFloat = -74
     
     static let backButtonX: CGFloat = -92
-    static let backButtonY: CGFloat = 85
+    static let backButtonY: CGFloat = 103
 }
 
 class SettingsPanel: SKSpriteNode {
@@ -41,6 +44,9 @@ class SettingsPanel: SKSpriteNode {
         
         addChild(darkModeToggle)
         addChild(darkModeButton)
+        
+        addChild(logsToggle)
+        addChild(logsButton)
     }
     
     lazy var versionLabel = MKOutlinedLabelNode(fontNamed: "KongtextRegular", fontSize: 12).then {
@@ -119,6 +125,19 @@ class SettingsPanel: SKSpriteNode {
     lazy var darkModeButton = SKSpriteNode().then {
         $0.name = "toggleDarkMode"
         $0.position = CGPoint(x: SettingsPositions.toggleOffX + (SettingsPositions.toggleOnX - SettingsPositions.toggleOffX) / 2, y: SettingsPositions.darkModeToggleY)
+        $0.zPosition = 3
+        $0.color = UIColor.clear
+        $0.size = CGSize(width: 45, height: 25)
+    }
+    
+    lazy var logsToggle = SKSpriteNode(texture: SKTexture(imageNamed: "toggle").then { $0.filteringMode = .nearest }).then {
+        $0.position = CGPoint(x: SettingsPositions.toggleOnX, y: SettingsPositions.logsToggleY)
+        $0.zPosition = 2
+    }
+    
+    lazy var logsButton = SKSpriteNode().then {
+        $0.name = "toggleLogs"
+        $0.position = CGPoint(x: SettingsPositions.toggleOffX + (SettingsPositions.toggleOnX - SettingsPositions.toggleOffX) / 2, y: SettingsPositions.logsToggleY)
         $0.zPosition = 3
         $0.color = UIColor.clear
         $0.size = CGSize(width: 45, height: 25)

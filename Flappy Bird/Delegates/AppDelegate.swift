@@ -24,6 +24,9 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
 
         // Assets.shared.preloadAssets()
 
+        // Beta play log (Settings > Logs); see GameLog.swift.
+        GameLog.start()
+
         // Pull scores and stats from iCloud before any screen reads them.
         CloudSync.start()
 

@@ -39,6 +39,10 @@
 	<string>public.app-category.arcade-games</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<key>LSSupportsOpeningDocumentsInPlace</key>
+	<true/>
+	<key>UIFileSharingEnabled</key>
+	<true/>
 	<key>UIAppFonts</key>
 	<array>
 		<string>fonts/pixel.ttf</string>
