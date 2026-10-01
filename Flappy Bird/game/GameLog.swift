@@ -70,7 +70,7 @@ enum GameLog {
 
     // What reached the glass: the time each drawn frame was really shown,
     // reported by the system on its own thread (hence the lock).
-    private static var shownLock = os_unfair_lock()
+    private static let shownLock = NSLock()
     private static var shownCounting = false
     private static var shownLast: CFTimeInterval = 0
     private static var shownCount = 0
@@ -83,8 +83,8 @@ enum GameLog {
     /// Called for every frame handed to the screen; `time` is 0 for one the
     /// system dropped without showing.
     static func shown(at time: CFTimeInterval) {
-        os_unfair_lock_lock(&shownLock)
-        defer { os_unfair_lock_unlock(&shownLock) }
+        shownLock.lock()
+        defer { shownLock.unlock() }
         guard shownCounting else {
             return
         }
@@ -101,20 +101,29 @@ enum GameLog {
         shownCount += 1
     }
 
+    /// Counting stops at death and while paused, and a new chain of gaps
+    /// starts on resume: the time away is not a frame gap.
+    static func shownLive(_ live: Bool) {
+        shownLock.lock()
+        shownCounting = live
+        shownLast = 0
+        shownLock.unlock()
+    }
+
     private static func resetShown(counting: Bool) {
-        os_unfair_lock_lock(&shownLock)
+        shownLock.lock()
         shownCounting = counting
         shownLast = 0
         shownCount = 0
         shownDropped = 0
         shownLongest = 0
         shownBuckets = [Int](repeating: 0, count: shownBuckets.count)
-        os_unfair_lock_unlock(&shownLock)
+        shownLock.unlock()
     }
 
     private static func shownSummary() -> String {
-        os_unfair_lock_lock(&shownLock)
-        defer { os_unfair_lock_unlock(&shownLock) }
+        shownLock.lock()
+        defer { shownLock.unlock() }
         let gaps = zip(shownNames, shownBuckets).filter { $0.1 > 0 }.map { "\($0)ms:\($1)" }.joined(separator: " ")
         return String(format: "shown=%d gaps %@ longest=%.0fms dropped by system=%d",
                       shownCount, gaps, shownLongest * 1000, shownDropped)
@@ -381,9 +390,10 @@ final class CountingMetalLayer: CAMetalLayer {
 
 // MARK: - Freezes
 
-/// Saves iOS's own diagnostic reports (hangs, with the main-thread call
-/// stack) next to the play log, as hang-<date>.json. iOS delivers them
-/// shortly after the event; nothing here runs during a round.
+/// Saves iOS's own diagnostic reports (hangs with the main-thread call
+/// stack, crashes) next to the play log, as diag-hang-<date>.json or
+/// diag-crash-<date>.json. iOS delivers them after the event; nothing here
+/// runs during a round.
 final class HangReports: NSObject, MXMetricManagerSubscriber {
     static let shared = HangReports()
     private static let keep = 20
@@ -395,16 +405,18 @@ final class HangReports: NSObject, MXMetricManagerSubscriber {
         }
         let stamp = DateFormatter().then {
             $0.locale = Locale(identifier: "en_US_POSIX")
-            $0.dateFormat = "yyyyMMdd-HHmmss"
+            $0.dateFormat = "yyyyMMdd-HHmmss-SSS"
         }
         for (index, payload) in payloads.enumerated() {
-            let name = "hang-\(stamp.string(from: Date()))-\(index).json"
+            let kind = payload.hangDiagnostics?.isEmpty == false ? "hang"
+                : payload.crashDiagnostics?.isEmpty == false ? "crash" : "other"
+            let name = "diag-\(kind)-\(stamp.string(from: Date()))-\(index).json"
             try? payload.jsonRepresentation().write(to: folder.appendingPathComponent(name))
         }
 
         // Keep the newest few.
         let reports = ((try? FileManager.default.contentsOfDirectory(atPath: folder.path)) ?? [])
-            .filter { $0.hasPrefix("hang-") }
+            .filter { $0.hasPrefix("diag-") }
             .sorted()
         for name in reports.dropLast(Self.keep) {
             try? FileManager.default.removeItem(at: folder.appendingPathComponent(name))

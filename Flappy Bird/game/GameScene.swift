@@ -233,6 +233,12 @@ final class GameScene: SKScene {
     /// starts, before this frame's physics).
     private var drawnBirdPosition = CGPoint.zero
     private var drawnBirdVelocityY: CGFloat = 0
+    /// Scheduled time simulated since that drawn frame, and how many
+    /// frames in between were simulated without being drawn.
+    private var timeSinceDrawn: TimeInterval = 0
+    private var undrawnSinceDrawn = 0
+    private var drawnCountAtLastUpdate = 0
+    private var realFrameTime: TimeInterval = 0
 
     private var skyNodes = [SKSpriteNode]()
     private var groundNodes = [SKSpriteNode]()
@@ -1044,12 +1050,23 @@ final class GameScene: SKScene {
             min(currentTime - lastUpdateTime, 1.0 / 30.0) : 1.0 / 60.0
 
         // Play log: the real frame time, counted while a round is live.
-        drawnBirdPosition = bird.position
-        drawnBirdVelocityY = bird.physicsBody?.velocity.dy ?? 0
         frameTimeBefore = lastFrameTime
         lastFrameTime = lastUpdateTime > 0 ? currentTime - lastUpdateTime : 0
+
+        // The bird as last seen: refreshed only when the previous frame
+        // actually got drawn (SpriteKit can simulate a frame and skip it).
+        if GameLog.drawnFrames != drawnCountAtLastUpdate {
+            drawnBirdPosition = bird.position
+            drawnBirdVelocityY = bird.physicsBody?.velocity.dy ?? 0
+            timeSinceDrawn = 0
+            undrawnSinceDrawn = 0
+        } else {
+            undrawnSinceDrawn += 1
+        }
+        drawnCountAtLastUpdate = GameLog.drawnFrames
+        timeSinceDrawn += lastFrameTime
         let clock = CACurrentMediaTime()
-        let realFrameTime = lastUpdateClock > 0 ? clock - lastUpdateClock : 0
+        realFrameTime = lastUpdateClock > 0 ? clock - lastUpdateClock : 0
         lastUpdateClock = clock
 
         if skipFrameLog {
@@ -1358,6 +1375,7 @@ final class GameScene: SKScene {
         Self.hitButton = true
         isPausedByUser = true
         GameLog.add(feedback ? "pause" : "pause (left the app)")
+        GameLog.shownLive(false)
 
         // No swoosh here: a sound queued on the scene cannot start once
         // the scene is paused below, so it played late, on top of the
@@ -1425,7 +1443,11 @@ final class GameScene: SKScene {
         isPaused = false
         isPausedByUser = false
         skipFrameLog = true
+        // The first frame after a pause would otherwise be "as long as the
+        // pause" in the death line and the tilt.
+        lastUpdateTime = 0
         GameLog.add("resume")
+        GameLog.shownLive(true)
 
         playSound(swooshSound)
 
@@ -2276,6 +2298,7 @@ final class GameScene: SKScene {
         isShowingGameOver = true
         isGameOver = true
         playFlapSound = false
+        GameLog.shownLive(false)
 
         // Ends the nose-up hold from the last flap, or the dead bird keeps
         // pointing up for up to 0.65 s while it falls.
@@ -2651,8 +2674,8 @@ final class GameScene: SKScene {
         let halfHeight = pipe.size.height / 2
         let radius = defaultBirdTexture.height * Constants.birdScale / 2
 
-        // Where the pipe was drawn last frame: it has since moved this far.
-        let moved = CGFloat(lastFrameTime / Constants.pipeMoveSpeed)
+        // Where the pipe was when he last saw it: it has since moved this far.
+        let moved = CGFloat(timeSinceDrawn / Constants.pipeMoveSpeed)
         let drawnCentreX = centre.x + moved
 
         let dx = max(abs(drawnBirdPosition.x - drawnCentreX) - halfWidth, 0)
@@ -2660,12 +2683,13 @@ final class GameScene: SKScene {
         let lip = pipe.name == "pipeUp" ? centre.y + halfHeight : centre.y - halfHeight
 
         GameLog.add(String(
-            format: "death PIPE (%@) score=%d | last drawn: bird=(%.1f,%.1f) vy=%.0f pipe x=%.1f..%.1f lip y=%.1f air=%.1f | this frame: %.0fms, pipe moved %.1f | frame before=%.0fms since tap=%.0fms",
+            format: "death PIPE (%@) score=%d | last drawn: bird=(%.1f,%.1f) vy=%.0f pipe x=%.1f..%.1f lip y=%.1f air=%.1f | since then: pipe moved %.1f, %d frame(s) not drawn | this frame %.0fms real (%.0fms scheduled), before=%.0fms, since tap=%.0fms",
             pipe.name == "pipeUp" ? "bottom" : "top",
             score, drawnBirdPosition.x, drawnBirdPosition.y, drawnBirdVelocityY,
             drawnCentreX - halfWidth, drawnCentreX + halfWidth, lip,
             hypot(dx, dy) - radius,
-            lastFrameTime * 1000, moved,
+            moved, undrawnSinceDrawn,
+            realFrameTime * 1000, lastFrameTime * 1000,
             frameTimeBefore * 1000,
             millisecondsSinceTap
         ))
