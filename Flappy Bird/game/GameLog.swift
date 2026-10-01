@@ -57,6 +57,8 @@ enum GameLog {
         }
         started = true
         _ = launchTime
+        // Read once before observing, so later changes are reported.
+        _ = ProcessInfo.processInfo.thermalState
 
         let defaults = UserDefaults.standard
         if defaults.object(forKey: settingKey) == nil {
@@ -93,16 +95,22 @@ enum GameLog {
         }
     }
 
+    /// Date and time for the header and each round's end line.
+    private static let clock = DateFormatter().then {
+        $0.locale = Locale(identifier: "en_US_POSIX")
+        $0.dateFormat = "yyyy-MM-dd HH:mm:ss"
+    }
+
+    /// Which build and phone; repeated at the top of every new file.
+    private static var buildLine = ""
+
     private static func writeHeader() {
         let info = Bundle.main.infoDictionary
         let version = info?["CFBundleShortVersionString"] as? String ?? "?"
         let build = info?["CFBundleVersion"] as? String ?? "?"
-        let stamp = DateFormatter().then {
-            $0.locale = Locale(identifier: "en_US_POSIX")
-            $0.dateFormat = "yyyy-MM-dd HH:mm:ss"
-        }.string(from: Date())
 
-        add("==== \(stamp) v\(version) (\(build)) \(deviceModel) iOS \(UIDevice.current.systemVersion)"
+        buildLine = "v\(version) (\(build)) \(deviceModel) iOS \(UIDevice.current.systemVersion)"
+        add("==== \(clock.string(from: Date())) \(buildLine)"
             + " low-power=\(ProcessInfo.processInfo.isLowPowerModeEnabled ? "ON" : "off")"
             + " screen=\(UIScreen.main.maximumFramesPerSecond)Hz thermal=\(thermalName)")
     }
@@ -126,9 +134,12 @@ enum GameLog {
         }
         let lag = max(0, CACurrentMediaTime() - touch.timestamp)
         let point = touch.location(in: view)
-        taps += 1
-        lagTotal += lag
-        worstLag = max(worstLag, lag)
+        // The round summary counts flaps only, not taps after a death.
+        if target == "flap" {
+            taps += 1
+            lagTotal += lag
+            worstLag = max(worstLag, lag)
+        }
         add(String(format: "tap lag=%.0fms x=%.0f y=%.0f r=%.0f fingers=%d -> %@",
                    lag * 1000, point.x, point.y, touch.majorRadius, fingers, target))
     }
@@ -172,8 +183,8 @@ enum GameLog {
         }
         let names = ["<=9", "<=13", "<=18", "<=25", "<=34", "<=50", "<=100", ">100"]
         let histogram = zip(names, buckets).map { "\($0)ms:\($1)" }.joined(separator: " ")
-        add(String(format: "round %d end score=%d time=%.1fs frames=%d fps=%.1f worst=%.0fms taps=%d lag avg=%.0fms worst=%.0fms",
-                   round, score, frameTime, frames,
+        add(String(format: "round %d end %@ score=%d time=%.1fs frames=%d fps=%.1f worst=%.0fms flaps=%d lag avg=%.0fms worst=%.0fms",
+                   round, clock.string(from: Date()), score, frameTime, frames,
                    frameTime > 0 ? Double(frames) / frameTime : 0, worstFrame * 1000,
                    taps, taps > 0 ? lagTotal / Double(taps) * 1000 : 0, worstLag * 1000))
         add("round \(round) frames \(histogram)")
@@ -188,17 +199,23 @@ enum GameLog {
             return
         }
         let text = lines.joined(separator: "\n") + "\n"
+        // A file started mid-session (deleted in Files, or rotated) still
+        // says which build and phone wrote it.
+        let fresh = lines.first?.contains("====") == true
+            ? text
+            : "          ==== continued \(buildLine)\n" + text
         lines.removeAll(keepingCapacity: true)
 
         writer.async {
             guard let data = text.data(using: .utf8),
+                  let freshData = fresh.data(using: .utf8),
                   let folder = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first else {
                 return
             }
             let file = folder.appendingPathComponent(fileName)
 
             if !FileManager.default.fileExists(atPath: file.path) {
-                try? data.write(to: file)
+                try? freshData.write(to: file)
                 return
             }
             guard let handle = try? FileHandle(forWritingTo: file) else {
@@ -210,7 +227,7 @@ enum GameLog {
                 let old = folder.appendingPathComponent(oldFileName)
                 try? FileManager.default.removeItem(at: old)
                 try? FileManager.default.moveItem(at: file, to: old)
-                try? data.write(to: file)
+                try? freshData.write(to: file)
                 return
             }
             try? handle.write(contentsOf: data)

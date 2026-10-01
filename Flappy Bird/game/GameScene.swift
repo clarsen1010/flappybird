@@ -219,6 +219,7 @@ final class GameScene: SKScene {
     private var lastFrameTime: TimeInterval = 0
     private var frameTimeBefore: TimeInterval = 0
     private var lastTapTime: TimeInterval = 0
+    private var lastTapPoint = CGPoint.zero
     /// The first frame after a pause is as long as the pause; not a slow frame.
     private var skipFrameLog = false
 
@@ -1063,6 +1064,7 @@ final class GameScene: SKScene {
         let nodeName = atPoint(location).name
 
         lastTapTime = CACurrentMediaTime()
+        lastTapPoint = location
         GameLog.tap(
             touch,
             in: view,
@@ -1140,16 +1142,23 @@ final class GameScene: SKScene {
     /// For the play log: what a tap landed on, or what the game will do with it.
     private func tapTarget(_ nodeName: String?) -> String {
         switch nodeName {
-        case "play", "pause", "resume", "settings", "birdPicker", "bestRuns",
-             "bestRunsBack", "bestRunsNext", "settingsBack",
-             "toggleSounds", "toggleNewBirds", "toggleHaptics",
+        case "play", "pause", "settings", "birdPicker", "bestRuns",
+             "bestRunsBack", "bestRunsNext", "settingsBack":
+            // These ignore taps while the button lock is on.
+            return (nodeName ?? "?") + (Self.hitButton ? " (locked, ignored)" : "")
+        case "resume", "toggleSounds", "toggleNewBirds", "toggleHaptics",
              "toggleDarkMode", "toggleLogs":
             return nodeName ?? "?"
         default:
             if isPausedByUser { return "nothing (paused)" }
-            if isWaitingToStart { return "start" }
+            if isWaitingToStart {
+                return CACurrentMediaTime() < startAllowedAt ? "nothing (fade not finished)" : "start"
+            }
             if isRoundLive { return "flap" }
-            return isGameOver ? "nothing (game over)" : "nothing (menu)"
+            if isGameOver { return "nothing (game over)" }
+            return isOnMenu && hypot(bird.position.x - lastTapPoint.x, bird.position.y - lastTapPoint.y) < 45
+                ? "birdPicker (tapped the bird)" + (Self.hitButton ? " (locked, ignored)" : "")
+                : "nothing (menu)"
         }
     }
 
@@ -1196,9 +1205,10 @@ final class GameScene: SKScene {
             .scale(to: Constants.pauseButtonScale, duration: 0.1)
         )
 
-        // Pipes keep spawning (hidden) while waiting on Get Ready; clear them
-        // and restart the spawner so the first pipe enters from the right edge
-        // instead of popping in on top of the bird.
+        // First round: the launch spawner has been adding hidden pipes since
+        // the title. Replays: gameOver stopped the spawner. Either way clear
+        // the pipes and start it here, so the first pipe enters from the
+        // right edge instead of popping in on top of the bird.
         pipes.removeAllChildren()
         removeAction(forKey: "pipeSpawner")
         startPipeSpawner()
@@ -1969,7 +1979,10 @@ final class GameScene: SKScene {
     func refreshTheme() {
         let night = isNight
         if night != nightShown {
-            GameLog.add("theme \(night ? "night" : "day")")
+            // iOS flips the appearance light and back while it takes its
+            // app-switcher snapshots; those lines are labelled.
+            GameLog.add("theme \(night ? "night" : "day")"
+                + (UIApplication.shared.applicationState == .active ? "" : " (app not on screen)"))
         }
         nightShown = night
 
@@ -2554,8 +2567,10 @@ final class GameScene: SKScene {
 
     /// Play log: where the bird and the pipe were when they touched, so a
     /// death that looked unfair can be checked. "gap" is the space left
-    /// between the bird's body and the pipe: about 0 for a real touch,
-    /// clearly above 0 if the game called a hit with air between them.
+    /// between the bird's body and the pipe. A real touch reads slightly
+    /// below 0 (-0.6 in the simulator); judge a death against what most
+    /// deaths show, and only a value several units above that means the
+    /// game called a hit with air between them.
     private func logPipeDeath(_ contact: SKPhysicsContact) {
         guard GameLog.enabled else {
             return
