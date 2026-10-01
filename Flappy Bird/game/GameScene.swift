@@ -2055,11 +2055,14 @@ final class GameScene: SKScene {
 
     private func makeScoreNode() -> SKNode {
         SKNode().then {
-            // Place the scoring sensor just beyond the right edge
-            // of the pipe. The bird must fully clear the pipe
-            // before it can trigger the score.
+            // The scoring sensor sits just past the pipe's trailing edge:
+            // the point lands when the bird's centre is about 6 units
+            // beyond it. Fixed offset (half the level bird's width):
+            // bird.width is the tilted frame, 30 to 52 units, so the
+            // scoring moment used to shift from pipe to pipe.
             $0.position = CGPoint(
-                x: pipeTextureDown.width + bird.width / 2 + 2,
+                x: pipeTextureDown.width
+                    + defaultBirdTexture.width * Constants.birdScale / 2 + 2,
                 y: height / 2 + 400
             )
 
