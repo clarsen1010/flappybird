@@ -15,6 +15,8 @@
 //  The file is Documents/flappy-log.txt, visible in the Files app under
 //  On My iPhone > Flappy Bird. Nothing is sent anywhere.
 //
+import MetricKit
+import SpriteKit
 import UIKit
 
 enum GameLog {
@@ -47,6 +49,16 @@ enum GameLog {
     private static var lagTotal: TimeInterval = 0
     private static var worstLag: TimeInterval = 0
     private static var round = 0
+
+    /// Frames the screen really received, counted by GameView's layer. The
+    /// frame timer above cannot see a frame that was simulated but not drawn.
+    static var drawnFrames = 0
+    private static var drawnAtFirstFrame = 0
+    private static var drawnAtLastFrame = 0
+
+    /// Frames in which the flying bird did not move at all (physics ran no
+    /// step that frame), counted by GameScene.
+    static var stuckFrames = 0
 
     // MARK: Setup
 
@@ -81,6 +93,9 @@ enum GameLog {
         }
 
         writeHeader()
+
+        // iOS reports freezes with what the app was doing at the time.
+        MXMetricManager.shared.add(HangReports.shared)
     }
 
     /// The Settings switch. Turning it off writes what is still in memory first.
@@ -149,6 +164,10 @@ enum GameLog {
         guard enabled else {
             return
         }
+        if frames == 0 {
+            drawnAtFirstFrame = drawnFrames
+        }
+        drawnAtLastFrame = drawnFrames
         frames += 1
         frameTime += dt
         worstFrame = max(worstFrame, dt)
@@ -173,6 +192,7 @@ enum GameLog {
         taps = 0
         lagTotal = 0
         worstLag = 0
+        stuckFrames = 0
         add("round \(round) start low-power=\(ProcessInfo.processInfo.isLowPowerModeEnabled ? "ON" : "off") \(detail)")
     }
 
@@ -187,7 +207,9 @@ enum GameLog {
                    round, clock.string(from: Date()), score, frameTime, frames,
                    frameTime > 0 ? Double(frames) / frameTime : 0, worstFrame * 1000,
                    taps, taps > 0 ? lagTotal / Double(taps) * 1000 : 0, worstLag * 1000))
-        add("round \(round) frames \(histogram)")
+        // One update can still be waiting for its draw, so 1 is normal.
+        let notDrawn = max(0, frames - 1 - (drawnAtLastFrame - drawnAtFirstFrame))
+        add("round \(round) frames \(histogram) | not drawn:\(notDrawn) bird stuck:\(stuckFrames)")
         flush()
     }
 
@@ -253,6 +275,58 @@ enum GameLog {
         uname(&system)
         return withUnsafePointer(to: &system.machine) {
             $0.withMemoryRebound(to: CChar.self, capacity: 1) { String(cString: $0) }
+        }
+    }
+}
+
+// MARK: - Drawn frames
+
+/// The game's SKView with a layer that counts the frames it hands out.
+final class GameView: SKView {
+    override class var layerClass: AnyClass {
+        CountingMetalLayer.self
+    }
+}
+
+final class CountingMetalLayer: CAMetalLayer {
+    override func nextDrawable() -> CAMetalDrawable? {
+        let drawable = super.nextDrawable()
+        if drawable != nil {
+            GameLog.drawnFrames &+= 1
+        }
+        return drawable
+    }
+}
+
+// MARK: - Freezes
+
+/// Saves iOS's own diagnostic reports (hangs, with the main-thread call
+/// stack) next to the play log, as hang-<date>.json. iOS delivers them
+/// shortly after the event; nothing here runs during a round.
+final class HangReports: NSObject, MXMetricManagerSubscriber {
+    static let shared = HangReports()
+    private static let keep = 20
+
+    func didReceive(_ payloads: [MXDiagnosticPayload]) {
+        guard GameLog.enabled,
+              let folder = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first else {
+            return
+        }
+        let stamp = DateFormatter().then {
+            $0.locale = Locale(identifier: "en_US_POSIX")
+            $0.dateFormat = "yyyyMMdd-HHmmss"
+        }
+        for (index, payload) in payloads.enumerated() {
+            let name = "hang-\(stamp.string(from: Date()))-\(index).json"
+            try? payload.jsonRepresentation().write(to: folder.appendingPathComponent(name))
+        }
+
+        // Keep the newest few.
+        let reports = ((try? FileManager.default.contentsOfDirectory(atPath: folder.path)) ?? [])
+            .filter { $0.hasPrefix("hang-") }
+            .sorted()
+        for name in reports.dropLast(Self.keep) {
+            try? FileManager.default.removeItem(at: folder.appendingPathComponent(name))
         }
     }
 }

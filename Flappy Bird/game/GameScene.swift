@@ -222,6 +222,7 @@ final class GameScene: SKScene {
     private var lastTapPoint = CGPoint.zero
     /// The first frame after a pause is as long as the pause; not a slow frame.
     private var skipFrameLog = false
+    private var lastBirdY: CGFloat = 0
 
     private var skyNodes = [SKSpriteNode]()
     private var groundNodes = [SKSpriteNode]()
@@ -1039,7 +1040,14 @@ final class GameScene: SKScene {
             skipFrameLog = false
         } else if isRoundLive, lastFrameTime > 0 {
             GameLog.frame(lastFrameTime)
+
+            // The bird is always moving in flight; the same height two
+            // frames running means physics did not step last frame.
+            if bird.position.y == lastBirdY, bird.physicsBody?.velocity.dy != 0 {
+                GameLog.stuckFrames += 1
+            }
         }
+        lastBirdY = bird.position.y
 
         lastUpdateTime = currentTime
 
