@@ -123,6 +123,11 @@ final class GameScene: SKScene {
         static let gameOverDelay: TimeInterval = 0.8
         static let resultDelay: TimeInterval = 0.2
 
+        /// See didFinishUpdate(): the longest pause before drawing, and the
+        /// time always left for the draw itself before the frame is due.
+        static let drawPause: TimeInterval = 0.003
+        static let drawReserve: TimeInterval = 0.0045
+
         /// How far the ground (and the sky above it) sits below the original
         /// layout. 0 = original (ground top at 29% of the screen); 78 puts it
         /// at 19%, Christian's pick.
@@ -1068,6 +1073,39 @@ final class GameScene: SKScene {
 
         updateBirdRotation(deltaTime: deltaTime)
     }
+
+    /// SpriteKit skips drawing a frame when no screen buffer is free at the
+    /// moment it looks, and on this phone the buffer from two frames back
+    /// is often a millisecond or two from being returned. The frame is then
+    /// simulated but never shown: about 6 a second while tapping at 120 Hz,
+    /// and worse in Low Power Mode with a finger on the glass, where iOS
+    /// also delivers the frame callback late (measured on his iPhone 18 Pro,
+    /// iOS 27.0.1, from the real presentation times).
+    ///
+    /// Pausing here, between the update and the draw, gives the buffer time
+    /// to come back. Same 30 s rounds, frames shown late: tapping 190 -> 8,
+    /// finger held 273 -> 19, untouched 74 -> 7; Low Power Mode with a
+    /// finger held 194 -> 4. The pause is at most 3 ms and always leaves
+    /// 4.5 ms before the frame is due, so it shrinks to nothing when the
+    /// callback itself arrives late.
+    override func didFinishUpdate() {
+        guard !Self.drawPauseOff else {
+            return
+        }
+
+        // lastUpdateTime is this frame's scheduled time (set in update).
+        let leadAtStart = lastUpdateTime - lastUpdateClock
+        let wake = lastUpdateClock + min(Constants.drawPause, leadAtStart - Constants.drawReserve)
+        let now = CACurrentMediaTime()
+
+        if now < wake {
+            usleep(UInt32((wake - now) * 1_000_000))
+        }
+    }
+
+    /// Launch with -noDrawPause to measure the game without the pause.
+    private static let drawPauseOff =
+        ProcessInfo.processInfo.arguments.contains("-noDrawPause")
 
     // MARK: Input
 
