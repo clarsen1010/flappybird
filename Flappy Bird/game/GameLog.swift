@@ -15,6 +15,7 @@
 //  The file is Documents/flappy-log.txt, visible in the Files app under
 //  On My iPhone > Flappy Bird. Nothing is sent anywhere.
 //
+import Metal
 import MetricKit
 import SpriteKit
 import UIKit
@@ -66,6 +67,58 @@ enum GameLog {
     /// Frames in which the flying bird did not move at all (physics ran no
     /// step that frame), counted by GameScene.
     static var stuckFrames = 0
+
+    // What reached the glass: the time each drawn frame was really shown,
+    // reported by the system on its own thread (hence the lock).
+    private static var shownLock = os_unfair_lock()
+    private static var shownCounting = false
+    private static var shownLast: CFTimeInterval = 0
+    private static var shownCount = 0
+    private static var shownDropped = 0
+    private static var shownLongest: CFTimeInterval = 0
+    private static let shownLimits: [Double] = [0.009, 0.013, 0.018, 0.026, 0.034, 0.051]
+    private static let shownNames = ["<=9", "<=13", "<=18", "<=26", "<=34", "<=51", ">51"]
+    private static var shownBuckets = [Int](repeating: 0, count: 7)
+
+    /// Called for every frame handed to the screen; `time` is 0 for one the
+    /// system dropped without showing.
+    static func shown(at time: CFTimeInterval) {
+        os_unfair_lock_lock(&shownLock)
+        defer { os_unfair_lock_unlock(&shownLock) }
+        guard shownCounting else {
+            return
+        }
+        guard time > 0 else {
+            shownDropped += 1
+            return
+        }
+        if shownLast > 0, time > shownLast {
+            let gap = time - shownLast
+            shownLongest = max(shownLongest, gap)
+            shownBuckets[shownLimits.firstIndex { gap <= $0 } ?? shownLimits.count] += 1
+        }
+        shownLast = time
+        shownCount += 1
+    }
+
+    private static func resetShown(counting: Bool) {
+        os_unfair_lock_lock(&shownLock)
+        shownCounting = counting
+        shownLast = 0
+        shownCount = 0
+        shownDropped = 0
+        shownLongest = 0
+        shownBuckets = [Int](repeating: 0, count: shownBuckets.count)
+        os_unfair_lock_unlock(&shownLock)
+    }
+
+    private static func shownSummary() -> String {
+        os_unfair_lock_lock(&shownLock)
+        defer { os_unfair_lock_unlock(&shownLock) }
+        let gaps = zip(shownNames, shownBuckets).filter { $0.1 > 0 }.map { "\($0)ms:\($1)" }.joined(separator: " ")
+        return String(format: "shown=%d gaps %@ longest=%.0fms dropped by system=%d",
+                      shownCount, gaps, shownLongest * 1000, shownDropped)
+    }
 
     // MARK: Setup
 
@@ -211,6 +264,7 @@ enum GameLog {
         worstLag = 0
         stuckFrames = 0
         notDrawn = 0
+        resetShown(counting: true)
         add("round \(round) start low-power=\(ProcessInfo.processInfo.isLowPowerModeEnabled ? "ON" : "off") \(detail)")
     }
 
@@ -226,6 +280,9 @@ enum GameLog {
                    taps, taps > 0 ? lagTotal / Double(taps) * 1000 : 0, worstLag * 1000))
         add("round \(round) frames \(histogram) | not drawn:\(notDrawn) bird stuck:\(stuckFrames)"
             + String(format: " least lead:%.1fms", leastLead.isFinite ? leastLead * 1000 : 0))
+        // The picture as he saw it: time between frames reaching the glass.
+        add("round \(round) on screen \(shownSummary())")
+        resetShown(counting: false)
         flush()
     }
 
@@ -307,8 +364,16 @@ final class GameView: SKView {
 final class CountingMetalLayer: CAMetalLayer {
     override func nextDrawable() -> CAMetalDrawable? {
         let drawable = super.nextDrawable()
-        if drawable != nil {
+        if let drawable {
             GameLog.drawnFrames &+= 1
+            // The simulator's drawables do not report presentation times.
+            #if !targetEnvironment(simulator)
+            if GameLog.enabled {
+                drawable.addPresentedHandler { shown in
+                    GameLog.shown(at: shown.presentedTime)
+                }
+            }
+            #endif
         }
         return drawable
     }
