@@ -26,6 +26,10 @@ class GameViewController: UIViewController {
     override func loadView() {
         view = SKView().then {
             $0.ignoresSiblingOrder = true
+            // Off by default, and a tap made while another finger (or a
+            // gripping thumb) was on the glass was dropped. The storyboard
+            // view this replaces had it on.
+            $0.isMultipleTouchEnabled = true
             // ProMotion: let SpriteKit render at up to 120 Hz (needs
             // CADisableMinimumFrameDurationOnPhone in Info.plist).
             $0.preferredFramesPerSecond = 120
