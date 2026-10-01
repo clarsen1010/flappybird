@@ -53,8 +53,9 @@ enum GameLog {
     /// Frames the screen really received, counted by GameView's layer. The
     /// frame timer above cannot see a frame that was simulated but not drawn.
     static var drawnFrames = 0
-    private static var drawnAtFirstFrame = 0
     private static var drawnAtLastFrame = 0
+    private static var notDrawn = 0
+    private static let notDrawnLinesPerRound = 80
 
     /// Frames in which the flying bird did not move at all (physics ran no
     /// step that frame), counted by GameScene.
@@ -164,8 +165,13 @@ enum GameLog {
         guard enabled else {
             return
         }
-        if frames == 0 {
-            drawnAtFirstFrame = drawnFrames
+        // No drawable handed out since the last update: that frame was
+        // simulated but never reached the screen.
+        if frames > 0, drawnFrames == drawnAtLastFrame {
+            notDrawn += 1
+            if notDrawn <= notDrawnLinesPerRound {
+                add("frame not drawn")
+            }
         }
         drawnAtLastFrame = drawnFrames
         frames += 1
@@ -193,6 +199,7 @@ enum GameLog {
         lagTotal = 0
         worstLag = 0
         stuckFrames = 0
+        notDrawn = 0
         add("round \(round) start low-power=\(ProcessInfo.processInfo.isLowPowerModeEnabled ? "ON" : "off") \(detail)")
     }
 
@@ -207,8 +214,6 @@ enum GameLog {
                    round, clock.string(from: Date()), score, frameTime, frames,
                    frameTime > 0 ? Double(frames) / frameTime : 0, worstFrame * 1000,
                    taps, taps > 0 ? lagTotal / Double(taps) * 1000 : 0, worstLag * 1000))
-        // One update can still be waiting for its draw, so 1 is normal.
-        let notDrawn = max(0, frames - 1 - (drawnAtLastFrame - drawnAtFirstFrame))
         add("round \(round) frames \(histogram) | not drawn:\(notDrawn) bird stuck:\(stuckFrames)")
         flush()
     }
