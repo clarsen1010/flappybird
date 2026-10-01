@@ -1219,12 +1219,11 @@ final class GameScene: SKScene {
         Self.hitButton = true
         isPausedByUser = true
 
-        if feedback {
-            playSound(swooshSound)
-
-            if haptics {
-                impactFeedback.impactOccurred()
-            }
+        // No swoosh here: a sound queued on the scene cannot start once
+        // the scene is paused below, so it played late, on top of the
+        // Resume swoosh.
+        if feedback, haptics {
+            impactFeedback.impactOccurred()
         }
 
         pauseButton.removeAllActions()
