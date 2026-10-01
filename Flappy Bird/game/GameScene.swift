@@ -2174,7 +2174,7 @@ final class GameScene: SKScene {
         Achievements.record(
             score: score,
             bird: currentBirdColor,
-            night: isNight,
+            night: nightShown,
             allBirds: Self.pickableBirds
         )
 
