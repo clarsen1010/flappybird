@@ -223,6 +223,10 @@ final class GameScene: SKScene {
     /// The first frame after a pause is as long as the pause; not a slow frame.
     private var skipFrameLog = false
     private var lastBirdY: CGFloat = 0
+    /// The bird as it was drawn in the last frame (its state when update
+    /// starts, before this frame's physics).
+    private var drawnBirdPosition = CGPoint.zero
+    private var drawnBirdVelocityY: CGFloat = 0
 
     private var skyNodes = [SKSpriteNode]()
     private var groundNodes = [SKSpriteNode]()
@@ -1034,6 +1038,8 @@ final class GameScene: SKScene {
             min(currentTime - lastUpdateTime, 1.0 / 30.0) : 1.0 / 60.0
 
         // Play log: the real frame time, counted while a round is live.
+        drawnBirdPosition = bird.position
+        drawnBirdVelocityY = bird.physicsBody?.velocity.dy ?? 0
         frameTimeBefore = lastFrameTime
         lastFrameTime = lastUpdateTime > 0 ? currentTime - lastUpdateTime : 0
         if skipFrameLog {
@@ -2573,12 +2579,16 @@ final class GameScene: SKScene {
         gameOver()
     }
 
-    /// Play log: where the bird and the pipe were when they touched, so a
-    /// death that looked unfair can be checked. "gap" is the space left
-    /// between the bird's body and the pipe. A real touch reads slightly
-    /// below 0 (-0.6 in the simulator); judge a death against what most
-    /// deaths show, and only a value several units above that means the
-    /// game called a hit with air between them.
+    /// Play log: what was on screen in the last drawn frame before a pipe
+    /// death, so a death that looked unfair can be checked.
+    ///
+    /// Pipes are moved once per frame, before the bird's physics, so inside
+    /// this callback the pipe is already at this frame's place while the
+    /// bird is still where it was drawn. "air" is the space he saw between
+    /// the bird's body and the pipe in that last drawn frame. At a smooth
+    /// frame rate it is a few units (the pipe moves 1.7 a frame at 120 Hz,
+    /// the bird up to about 8). A large "air" together with a long frame
+    /// means the hit happened in a jump he never saw.
     private func logPipeDeath(_ contact: SKPhysicsContact) {
         guard GameLog.enabled else {
             return
@@ -2598,18 +2608,22 @@ final class GameScene: SKScene {
         let halfHeight = pipe.size.height / 2
         let radius = defaultBirdTexture.height * Constants.birdScale / 2
 
-        let dx = max(abs(bird.position.x - centre.x) - halfWidth, 0)
-        let dy = max(abs(bird.position.y - centre.y) - halfHeight, 0)
+        // Where the pipe was drawn last frame: it has since moved this far.
+        let moved = CGFloat(lastFrameTime / Constants.pipeMoveSpeed)
+        let drawnCentreX = centre.x + moved
+
+        let dx = max(abs(drawnBirdPosition.x - drawnCentreX) - halfWidth, 0)
+        let dy = max(abs(drawnBirdPosition.y - centre.y) - halfHeight, 0)
         let lip = pipe.name == "pipeUp" ? centre.y + halfHeight : centre.y - halfHeight
 
         GameLog.add(String(
-            format: "death PIPE (%@) score=%d bird=(%.1f,%.1f) vy=%.0f pipe x=%.1f..%.1f lip y=%.1f gap=%.1f frame=%.0fms before=%.0fms since tap=%.0fms",
+            format: "death PIPE (%@) score=%d | last drawn: bird=(%.1f,%.1f) vy=%.0f pipe x=%.1f..%.1f lip y=%.1f air=%.1f | this frame: %.0fms, pipe moved %.1f | frame before=%.0fms since tap=%.0fms",
             pipe.name == "pipeUp" ? "bottom" : "top",
-            score, bird.position.x, bird.position.y,
-            bird.physicsBody?.velocity.dy ?? 0,
-            centre.x - halfWidth, centre.x + halfWidth, lip,
+            score, drawnBirdPosition.x, drawnBirdPosition.y, drawnBirdVelocityY,
+            drawnCentreX - halfWidth, drawnCentreX + halfWidth, lip,
             hypot(dx, dy) - radius,
-            lastFrameTime * 1000, frameTimeBefore * 1000,
+            lastFrameTime * 1000, moved,
+            frameTimeBefore * 1000,
             millisecondsSinceTap
         ))
     }
