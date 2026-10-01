@@ -35,7 +35,7 @@ See license for details.
         DispatchQueue.global(qos: .background).async {
             sleep(1)
             DispatchQueue.main.async {
-                self.progressLabel.text = "Loading Sentry"
+                self.progressLabel.text = "Loading"
 //                SentrySDK.start { options in
 //                    options.dsn = "https://991041777f23449d8f13e438d7911c1f@o956450.ingest.sentry.io/5983798"
 //                    options.tracesSampleRate = 0.5
