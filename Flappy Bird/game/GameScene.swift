@@ -2107,6 +2107,10 @@ final class GameScene: SKScene {
         isGameOver = true
         playFlapSound = false
 
+        // Ends the nose-up hold from the last flap, or the dead bird keeps
+        // pointing up for up to 0.65 s while it falls.
+        lastFlapTime = 0
+
         // The shake is part of the death look; only the buzz follows Haptics.
         shakeScreen()
         if haptics {
