@@ -48,9 +48,21 @@ class GameViewController: UIViewController {
         // at the next round instead.
         if #available(iOS 17.0, *) {
             registerForTraitChanges([UITraitUserInterfaceStyle.self]) { (self: Self, _) in
+                // The scene reads the view's appearance, and the view updates
+                // one step after this controller: without this the theme
+                // always landed on the previous appearance (day after every
+                // trip to the Home Screen on a dark phone).
+                self.view.updateTraitsIfNeeded()
                 self.scene?.refreshTheme()
             }
         }
+    }
+
+    /// The first theme is chosen in viewDidLoad, before the view is on
+    /// screen; here its appearance is final.
+    override func viewIsAppearing(_ animated: Bool) {
+        super.viewIsAppearing(animated)
+        scene?.refreshTheme()
     }
     
     override func pressesBegan(_ presses: Set<UIPress>, with event: UIPressesEvent?) {
