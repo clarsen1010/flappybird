@@ -2230,6 +2230,20 @@ final class GameScene: SKScene {
             secondScale: 1.2,
             secondScaleDuration: 0.1
         )
+
+        // The buttons appear where the thumb has been tapping; a tap still
+        // in flight from the round must not press Play or switch birds.
+        // Released from a scene action: a node's own action dies with the
+        // node and would leave every button dead (see gameOver).
+        Self.hitButton = true
+        run(
+            .sequence([
+                .wait(forDuration: 0.35),
+                .run {
+                    Self.hitButton = false
+                }
+            ])
+        )
     }
 
     // MARK: Reset
