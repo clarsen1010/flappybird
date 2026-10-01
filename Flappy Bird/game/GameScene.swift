@@ -196,6 +196,10 @@ final class GameScene: SKScene {
     private var gameStartTime: TimeInterval = 0
     private var lastFlapTime: TimeInterval = 0
 
+    /// Get Ready appears behind the black fade from Play; taps start the
+    /// round only once the fade has cleared.
+    private var startAllowedAt: TimeInterval = 0
+
     private var isWaitingToStart = false
     private var isGameOver = false
     private var hasHitGround = false
@@ -1099,6 +1103,10 @@ final class GameScene: SKScene {
             return
         }
 
+        guard CACurrentMediaTime() >= startAllowedAt else {
+            return
+        }
+
         isWaitingToStart = false
         gameStartTime = CFAbsoluteTimeGetCurrent()
 
@@ -1322,6 +1330,9 @@ final class GameScene: SKScene {
         isWaitingToStart = true
         isGameOver = false
         Self.hitButton = false
+
+        // The fade is at full black right now and takes 0.25 s to clear.
+        startAllowedAt = CACurrentMediaTime() + 0.25
     }
 
     private func prepareInitialGame() {
