@@ -38,12 +38,18 @@ enum GameLog {
     private static var started = false
     private static var lines: [String] = []
 
-    // Per-round frame and tap numbers.
-    private static let bucketLimits: [Double] = [0.009, 0.013, 0.018, 0.025, 0.034, 0.050, 0.100]
-    private static var buckets = [Int](repeating: 0, count: 8)
+    // Per-round frame and tap numbers. Frame gaps are measured on the real
+    // clock: the time SpriteKit passes to update() is the frame's scheduled
+    // time, which stays perfectly even when the callback itself runs late.
+    private static let bucketLimits: [Double] = [0.005, 0.007, 0.009, 0.011, 0.013, 0.018, 0.025, 0.034, 0.050, 0.100]
+    private static let bucketNames = ["<=5", "<=7", "<=9", "<=11", "<=13", "<=18", "<=25", "<=34", "<=50", "<=100", ">100"]
+    private static var buckets = [Int](repeating: 0, count: 11)
     private static var frames = 0
     private static var frameTime: TimeInterval = 0
     private static var worstFrame: TimeInterval = 0
+    private static var gapBefore: TimeInterval = 0
+    /// How long before its scheduled time each update started, at worst.
+    private static var leastLead: TimeInterval = .infinity
     private static var slowLines = 0
     private static var taps = 0
     private static var lagTotal: TimeInterval = 0
@@ -161,27 +167,31 @@ enum GameLog {
     }
 
     /// Every frame of a live round. Counts it; a slow one also gets a line.
-    static func frame(_ dt: TimeInterval) {
+    /// `scheduled` is the gap SpriteKit reports, `dt` the gap on the real
+    /// clock, `lead` how long before its scheduled time this update began.
+    static func frame(scheduled: TimeInterval, real dt: TimeInterval, lead: TimeInterval) {
         guard enabled else {
             return
         }
+        leastLead = min(leastLead, lead)
         // No drawable handed out since the last update: that frame was
         // simulated but never reached the screen.
         if frames > 0, drawnFrames == drawnAtLastFrame {
             notDrawn += 1
             if notDrawn <= notDrawnLinesPerRound {
-                add("frame not drawn")
+                add(String(format: "frame not drawn (real gaps before it: %.1fms, %.1fms)", gapBefore * 1000, dt * 1000))
             }
         }
+        gapBefore = dt
         drawnAtLastFrame = drawnFrames
         frames += 1
         frameTime += dt
         worstFrame = max(worstFrame, dt)
         buckets[bucketLimits.firstIndex { dt <= $0 } ?? bucketLimits.count] += 1
 
-        if dt > slowFrame, slowLines < slowLinesPerRound {
+        if max(dt, scheduled) > slowFrame, slowLines < slowLinesPerRound {
             slowLines += 1
-            add(String(format: "slow frame %.0fms", dt * 1000))
+            add(String(format: "slow frame %.0fms (scheduled gap %.0fms)", dt * 1000, scheduled * 1000))
         }
     }
 
@@ -194,6 +204,7 @@ enum GameLog {
         frames = 0
         frameTime = 0
         worstFrame = 0
+        leastLead = .infinity
         slowLines = 0
         taps = 0
         lagTotal = 0
@@ -208,13 +219,13 @@ enum GameLog {
         guard enabled else {
             return
         }
-        let names = ["<=9", "<=13", "<=18", "<=25", "<=34", "<=50", "<=100", ">100"]
-        let histogram = zip(names, buckets).map { "\($0)ms:\($1)" }.joined(separator: " ")
+        let histogram = zip(bucketNames, buckets).filter { $0.1 > 0 }.map { "\($0)ms:\($1)" }.joined(separator: " ")
         add(String(format: "round %d end %@ score=%d time=%.1fs frames=%d fps=%.1f worst=%.0fms flaps=%d lag avg=%.0fms worst=%.0fms",
                    round, clock.string(from: Date()), score, frameTime, frames,
                    frameTime > 0 ? Double(frames) / frameTime : 0, worstFrame * 1000,
                    taps, taps > 0 ? lagTotal / Double(taps) * 1000 : 0, worstLag * 1000))
-        add("round \(round) frames \(histogram) | not drawn:\(notDrawn) bird stuck:\(stuckFrames)")
+        add("round \(round) frames \(histogram) | not drawn:\(notDrawn) bird stuck:\(stuckFrames)"
+            + String(format: " least lead:%.1fms", leastLead.isFinite ? leastLead * 1000 : 0))
         flush()
     }
 

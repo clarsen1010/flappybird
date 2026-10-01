@@ -223,6 +223,7 @@ final class GameScene: SKScene {
     /// The first frame after a pause is as long as the pause; not a slow frame.
     private var skipFrameLog = false
     private var lastBirdY: CGFloat = 0
+    private var lastUpdateClock: TimeInterval = 0
     /// The bird as it was drawn in the last frame (its state when update
     /// starts, before this frame's physics).
     private var drawnBirdPosition = CGPoint.zero
@@ -1042,10 +1043,14 @@ final class GameScene: SKScene {
         drawnBirdVelocityY = bird.physicsBody?.velocity.dy ?? 0
         frameTimeBefore = lastFrameTime
         lastFrameTime = lastUpdateTime > 0 ? currentTime - lastUpdateTime : 0
+        let clock = CACurrentMediaTime()
+        let realFrameTime = lastUpdateClock > 0 ? clock - lastUpdateClock : 0
+        lastUpdateClock = clock
+
         if skipFrameLog {
             skipFrameLog = false
         } else if isRoundLive, lastFrameTime > 0 {
-            GameLog.frame(lastFrameTime)
+            GameLog.frame(scheduled: lastFrameTime, real: realFrameTime, lead: currentTime - clock)
 
             // The bird is always moving in flight; the same height two
             // frames running means physics did not step last frame.
