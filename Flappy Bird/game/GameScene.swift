@@ -1342,6 +1342,12 @@ final class GameScene: SKScene {
         if isPausedByUser {
             isPaused = true
         }
+
+        // The fade from Play is frozen while the app is away but the clock
+        // is not; give it time to finish before a tap can start the round.
+        if isWaitingToStart {
+            startAllowedAt = CACurrentMediaTime() + 0.25
+        }
     }
 
     private func handleResumeTap() {
