@@ -121,7 +121,6 @@ struct Achievement {
 
 enum Achievements {
     static let earnedKey = "achievements"
-    static let birdsPlayedKey = "birdsPlayed"
 
     static let all = [
         Achievement(id: "first", title: "FIRST PIPE", detail: "SCORE 1"),
@@ -130,25 +129,15 @@ enum Achievements {
         Achievement(id: "platinum", title: "PLATINUM", detail: "SCORE 40"),
         Achievement(id: "fifty", title: "FIFTY", detail: "SCORE 50"),
         Achievement(id: "century", title: "CENTURY", detail: "SCORE 100"),
-        Achievement(id: "nightOwl", title: "NIGHT OWL", detail: "20 AT NIGHT"),
-        Achievement(id: "rainbow", title: "RAINBOW", detail: "FLY EVERY BIRD"),
     ]
 
     static func earned() -> Set<String> {
         Set(UserDefaults.standard.stringArray(forKey: earnedKey) ?? [])
     }
 
-    static func birdsPlayed() -> Set<String> {
-        Set(UserDefaults.standard.stringArray(forKey: birdsPlayedKey) ?? [])
-    }
-
     /// Records a finished round and returns the achievements it newly earned.
     @discardableResult
-    static func record(score: Int, bird: String, night: Bool, allBirds: [String]) -> [Achievement] {
-        var birds = birdsPlayed()
-        birds.insert(bird)
-        UserDefaults.standard.set(birds.sorted(), forKey: birdsPlayedKey)
-
+    static func record(score: Int) -> [Achievement] {
         var goals: [String] = []
         if score >= 1 { goals.append("first") }
         if score >= 10 { goals.append("ten") }
@@ -156,8 +145,6 @@ enum Achievements {
         if score >= 40 { goals.append("platinum") }
         if score >= 50 { goals.append("fifty") }
         if score >= 100 { goals.append("century") }
-        if night && score >= 20 { goals.append("nightOwl") }
-        if Set(allBirds).isSubset(of: birds) { goals.append("rainbow") }
 
         var earned = earned()
         let new = goals.filter { !earned.contains($0) }

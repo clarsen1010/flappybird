@@ -63,7 +63,7 @@ enum BestRuns {
     }
 }
 
-/// Best Runs, Stats and two Goals pages in one panel. The right arrow on the
+/// Best Runs, Stats and Goals pages in one panel. The right arrow on the
 /// title row flips pages; the left arrow closes the panel.
 class BestRunsPanel: SKNode {
 
@@ -81,19 +81,16 @@ class BestRunsPanel: SKNode {
         static let scoreX: CGFloat = -40
         static let dateX: CGFloat = 35
         static let newX: CGFloat = 90
-
-        static let goalsPerPage = 4
     }
 
     private enum Page: Int, CaseIterable {
-        case runs, stats, goals1, goals2
+        case runs, stats, goals
 
         var title: String {
             switch self {
             case .runs: return "BEST RUNS"
             case .stats: return "STATS"
-            case .goals1: return "GOALS 1/2"
-            case .goals2: return "GOALS 2/2"
+            case .goals: return "GOALS"
             }
         }
     }
@@ -115,8 +112,7 @@ class BestRunsPanel: SKNode {
     /// Each goal reuses a medal from the result board.
     private static let goalMedals = [
         "first": "copper-medal", "ten": "copper-medal", "quarter": "silver-medal",
-        "fifty": "gold-medal", "century": "platinum-medal", "nightOwl": "silver-medal",
-        "rainbow": "gold-medal", "platinum": "platinum-medal",
+        "fifty": "gold-medal", "century": "platinum-medal", "platinum": "platinum-medal",
     ]
 
     private var page = Page.runs
@@ -187,8 +183,7 @@ class BestRunsPanel: SKNode {
         switch page {
         case .runs: showRuns()
         case .stats: showStats()
-        case .goals1: showGoals(Array(Achievements.all.prefix(Layout.goalsPerPage)))
-        case .goals2: showGoals(Array(Achievements.all.dropFirst(Layout.goalsPerPage)))
+        case .goals: showGoals(Achievements.all)
         }
     }
 

@@ -360,7 +360,7 @@ final class GameScene: SKScene {
     /// "random" or one of pickableBirds; chosen with the bird-picker button.
     private var birdChoice = "random"
 
-    /// The color flying this round, for the Rainbow achievement.
+    /// The color flying this round, for the dead-bird look and the play log.
     private var currentBirdColor = "yellow"
 
     private lazy var playButton = makePlayButton()
@@ -2393,12 +2393,7 @@ final class GameScene: SKScene {
         // Before resultNode.score saves a new best (see BestRuns.record).
         BestRuns.record(score)
         GameStats.record(score: score)
-        Achievements.record(
-            score: score,
-            bird: currentBirdColor,
-            night: nightShown,
-            allBirds: Self.pickableBirds
-        )
+        Achievements.record(score: score)
 
         resultNode.setScale(0)
         resultNode.score = score

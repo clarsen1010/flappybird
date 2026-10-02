@@ -12,7 +12,7 @@
 //  - dayStats: per day, the record with more games wins, ties broken by
 //    pipes then best (two phones playing on the same day under-count;
 //    accepted).
-//  - achievements, birdsPlayed: union.
+//  - achievements: union.
 //
 import Foundation
 
@@ -83,7 +83,7 @@ enum CloudSync {
         }
 
         // Sets
-        for key in [Achievements.earnedKey, Achievements.birdsPlayedKey] {
+        for key in [Achievements.earnedKey] {
             let local = Set(defaults.stringArray(forKey: key) ?? [])
             let cloud = Set(store.array(forKey: key) as? [String] ?? [])
             let union = local.union(cloud)
