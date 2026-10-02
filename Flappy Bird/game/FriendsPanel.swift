@@ -42,7 +42,11 @@ class FriendsPanel: SKNode {
     /// "friendsAddBack<n>".
     private(set) var addBackRows: [PlayerRow] = []
 
-    private var pageIndex = 0
+    // The page showing: a list and a page within it. Kept per list so that
+    // a redraw (a fetch arrived, someone was added back) stays on the list
+    // the player is looking at.
+    private var list = List.friends
+    private var listPage = 0
     private let titleNode = SKNode()
     private let rowsNode = SKNode()
 
@@ -79,15 +83,15 @@ class FriendsPanel: SKNode {
     /// `keepPage` is set (a fetch finished while the panel was open).
     func reload(keepPage: Bool = false) {
         if !keepPage {
-            pageIndex = 0
+            list = .friends
+            listPage = 0
         }
         showPage()
     }
 
     /// After the last EVERYONE page comes the first FRIENDS page again.
     func nextPage() {
-        pageIndex += 1
-        showPage(wrap: true)
+        showPage(advance: true)
     }
 
     // MARK: Pages
@@ -119,22 +123,36 @@ class FriendsPanel: SKNode {
         }
     }
 
-    private func showPage(wrap: Bool = false) {
+    private func showPage(advance: Bool = false) {
         let added = addedYouEntries()
 
-        // ADDED YOU only exists while someone is waiting on it.
-        let groups: [(list: List, pages: [[Entry]])] = [
-            (.friends, pages(friendEntries())),
-            (.addedYou, added.isEmpty ? [] : pages(added)),
-            (.everyone, pages(everyoneEntries())),
+        // ADDED YOU only exists while someone is waiting on it; the other
+        // two always have a page.
+        let order: [List] = added.isEmpty ? [.friends, .everyone] : [.friends, .addedYou, .everyone]
+        let listPages: [List: [[Entry]]] = [
+            .friends: pages(friendEntries()),
+            .addedYou: pages(added),
+            .everyone: pages(everyoneEntries()),
         ]
-        let all = groups.flatMap { group in
-            group.pages.enumerated().map { (list: group.list, index: $0, count: group.pages.count, entries: $1) }
+
+        if !order.contains(list) {
+            // The last person waiting was added back: they are on FRIENDS now.
+            list = .friends
+            listPage = 0
+        } else if advance {
+            if listPage + 1 < listPages[list]?.count ?? 0 {
+                listPage += 1
+            } else {
+                let next = (order.firstIndex(of: list) ?? 0) + 1
+                list = order[next % order.count]
+                listPage = 0
+            }
         }
 
-        // A redraw after the lists shrank stays on the nearest page.
-        pageIndex = wrap ? pageIndex % all.count : min(pageIndex, all.count - 1)
-        let page = all[pageIndex]
+        let group = listPages[list] ?? [[]]
+        // A redraw after the list shrank stays on its nearest page.
+        listPage = min(listPage, group.count - 1)
+        let page = (list: list, index: listPage, count: group.count, entries: group[listPage])
 
         var title = page.list.title
         if page.count > 1 {
