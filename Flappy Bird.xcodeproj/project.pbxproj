@@ -22,6 +22,7 @@
 		DD898AFD245CCFC400478094 /* sounds in Resources */ = {isa = PBXBuildFile; fileRef = DD898AFC245CCFC400478094 /* sounds */; };
 		DD898B13245CD23A00478094 /* SettingsPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD898B0F245CD23A00478094 /* SettingsPanel.swift */; };
 		C1A5B0F22E8A000100F1A001 /* BestRunsPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1A5B0F12E8A000100F1A001 /* BestRunsPanel.swift */; };
+		C1A5B1022E8A000100F1A001 /* FriendsLogic.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1A5B1012E8A000100F1A001 /* FriendsLogic.swift */; };
 		C1A5B0FC2E8A000100F1A001 /* GameLog.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1A5B0FB2E8A000100F1A001 /* GameLog.swift */; };
 		C1A5B0F62E8A000100F1A001 /* CloudSync.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1A5B0F52E8A000100F1A001 /* CloudSync.swift */; };
 		C1A5B0F42E8A000100F1A001 /* GameStats.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1A5B0F32E8A000100F1A001 /* GameStats.swift */; };
@@ -68,6 +69,7 @@
 		DD898AFC245CCFC400478094 /* sounds */ = {isa = PBXFileReference; lastKnownFileType = folder; path = sounds; sourceTree = "<group>"; };
 		DD898B0F245CD23A00478094 /* SettingsPanel.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = SettingsPanel.swift; sourceTree = "<group>"; };
 		C1A5B0F12E8A000100F1A001 /* BestRunsPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BestRunsPanel.swift; sourceTree = "<group>"; };
+		C1A5B1012E8A000100F1A001 /* FriendsLogic.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FriendsLogic.swift; sourceTree = "<group>"; };
 		C1A5B0FB2E8A000100F1A001 /* GameLog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameLog.swift; sourceTree = "<group>"; };
 		C1A5B0F52E8A000100F1A001 /* CloudSync.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudSync.swift; sourceTree = "<group>"; };
 		C1A5B0F32E8A000100F1A001 /* GameStats.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameStats.swift; sourceTree = "<group>"; };
@@ -183,6 +185,7 @@
 				DD898B19245CD2C100478094 /* Actions.sks */,
 				DD898B0F245CD23A00478094 /* SettingsPanel.swift */,
 				C1A5B0F12E8A000100F1A001 /* BestRunsPanel.swift */,
+				C1A5B1012E8A000100F1A001 /* FriendsLogic.swift */,
 				C1A5B0FB2E8A000100F1A001 /* GameLog.swift */,
 				C1A5B0F52E8A000100F1A001 /* CloudSync.swift */,
 				C1A5B0F32E8A000100F1A001 /* GameStats.swift */,
@@ -289,6 +292,7 @@
 				DD898B15245CD23A00478094 /* ResultBoard.swift in Sources */,
 				DD898B13245CD23A00478094 /* SettingsPanel.swift in Sources */,
 				C1A5B0F22E8A000100F1A001 /* BestRunsPanel.swift in Sources */,
+				C1A5B1022E8A000100F1A001 /* FriendsLogic.swift in Sources */,
 				C1A5B0FC2E8A000100F1A001 /* GameLog.swift in Sources */,
 				C1A5B0F62E8A000100F1A001 /* CloudSync.swift in Sources */,
 				C1A5B0F42E8A000100F1A001 /* GameStats.swift in Sources */,
