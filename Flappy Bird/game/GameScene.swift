@@ -213,7 +213,6 @@ final class GameScene: SKScene {
     private var playFlapSound = false
 
     private var playSounds = true
-    private var newBirds = true
     private var haptics = true
     /// On: day or night follows the phone's appearance. Off: always day.
     private var darkMode = true
@@ -562,11 +561,6 @@ final class GameScene: SKScene {
             defaultValue: true
         )
 
-        newBirds = loadBoolSetting(
-            key: "newBirds",
-            defaultValue: true
-        )
-
         haptics = loadBoolSetting(
             key: "haptics",
             defaultValue: true
@@ -616,13 +610,6 @@ final class GameScene: SKScene {
                 ? SettingsPositions.toggleOnX
                 : SettingsPositions.toggleOffX,
             y: SettingsPositions.soundToggleY
-        )
-
-        settingsNode.newBirdsToggle.position = CGPoint(
-            x: newBirds
-                ? SettingsPositions.toggleOnX
-                : SettingsPositions.toggleOffX,
-            y: SettingsPositions.newBirdsToggleY
         )
 
         settingsNode.hapticsToggle.position = CGPoint(
@@ -894,7 +881,7 @@ final class GameScene: SKScene {
 
             if birdChoice != "random" {
                 color = birdChoice
-            } else if newBirds {
+            } else {
                 switch randomValue {
                 case ..<0.161:
                     color = "yellow"
@@ -910,15 +897,6 @@ final class GameScene: SKScene {
                     color = "purple"
                 default:
                     color = "kup"
-                }
-            } else {
-                switch randomValue {
-                case ..<0.33:
-                    color = "yellow"
-                case ..<0.66:
-                    color = "red"
-                default:
-                    color = "blue"
                 }
             }
 
@@ -1174,9 +1152,6 @@ final class GameScene: SKScene {
         case "toggleSounds":
             handleSoundToggle()
 
-        case "toggleNewBirds":
-            handleNewBirdsToggle()
-
         case "toggleHaptics":
             handleHapticsToggle()
 
@@ -1220,8 +1195,8 @@ final class GameScene: SKScene {
              "bestRunsBack", "bestRunsNext", "settingsBack":
             // These ignore taps while the button lock is on.
             return (nodeName ?? "?") + (Self.hitButton ? " (locked, ignored)" : "")
-        case "resume", "toggleSounds", "toggleNewBirds", "toggleHaptics",
-             "toggleDarkMode", "toggleLogs":
+        case "resume", "toggleSounds", "toggleHaptics", "toggleDarkMode",
+             "toggleLogs":
             return nodeName ?? "?"
         default:
             if isPausedByUser { return "nothing (paused)" }
@@ -1727,7 +1702,7 @@ final class GameScene: SKScene {
         if birdChoice != "random" {
             colors = [birdChoice]
         } else {
-            colors = newBirds ? Self.pickableBirds : ["yellow", "red", "blue"]
+            colors = Self.pickableBirds
         }
 
         let frames = colors.flatMap { color in
@@ -1931,23 +1906,6 @@ final class GameScene: SKScene {
         // playSound() is a no-op while sound is off, so this only swooshes
         // when sound was just turned on.
         playSound(swooshSound)
-    }
-
-    private func handleNewBirdsToggle() {
-        if haptics {
-            impactFeedback.impactOccurred()
-        }
-
-        playSound(swooshSound)
-
-        toggle(
-            value: &newBirds,
-            key: "newBirds",
-            control: settingsNode.newBirdsToggle,
-            y: SettingsPositions.newBirdsToggleY
-        )
-
-        refreshBirdPickerIcon()
     }
 
     private func handleHapticsToggle() {

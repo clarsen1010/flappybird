@@ -12,10 +12,10 @@ struct SettingsPositions {
     static let toggleOnX: CGFloat = 68
     static let toggleOffX: CGFloat = 46
     
-    // The panel art grew by one 36-point row for LOGS, so its centre moved
-    // down 18 and every row sits 18 higher than before.
-    static let soundToggleY: CGFloat = 78
-    static let newBirdsToggleY: CGFloat = 42
+    // Rows top to bottom, 36 apart (44 before DARK MODE): NAME, SOUND,
+    // HAPTICS, DARK MODE, LOGS. The labels are part of the panel art.
+    static let nameRowY: CGFloat = 78
+    static let soundToggleY: CGFloat = 42
     static let hapticsToggleY: CGFloat = 6
     static let darkModeToggleY: CGFloat = -38
     static let logsToggleY: CGFloat = -74
@@ -36,9 +36,6 @@ class SettingsPanel: SKSpriteNode {
         addChild(soundToggle)
         addChild(soundButton)
         
-        addChild(newBirdsToggle)
-        addChild(newBirdsButton)
-        
         addChild(hapticsToggle)
         addChild(hapticsButton)
         
@@ -51,7 +48,7 @@ class SettingsPanel: SKSpriteNode {
     
     lazy var versionLabel = MKOutlinedLabelNode(fontNamed: "KongtextRegular", fontSize: 12).then {
         $0.name = "versionLabel"
-        $0.position = CGPoint(x: SettingsPositions.toggleOffX + (SettingsPositions.toggleOnX - SettingsPositions.toggleOffX) / 2, y: SettingsPositions.soundToggleY + 20)
+        $0.position = CGPoint(x: SettingsPositions.toggleOffX + (SettingsPositions.toggleOnX - SettingsPositions.toggleOffX) / 2, y: SettingsPositions.nameRowY + 20)
         $0.zPosition = 3
         $0.fontColor = UIColor.white
         $0.borderColor = UIColor.black
@@ -86,19 +83,6 @@ class SettingsPanel: SKSpriteNode {
     lazy var soundButton = SKSpriteNode().then {
         $0.name = "toggleSounds"
         $0.position = CGPoint(x: SettingsPositions.toggleOffX + (SettingsPositions.toggleOnX - SettingsPositions.toggleOffX) / 2, y: SettingsPositions.soundToggleY)
-        $0.zPosition = 3
-        $0.color = UIColor.clear
-        $0.size = CGSize(width: 45, height: 25)
-    }
-    
-    lazy var newBirdsToggle = SKSpriteNode(texture: SKTexture(imageNamed: "toggle").then { $0.filteringMode = .nearest }).then {
-        $0.position = CGPoint(x: SettingsPositions.toggleOnX, y: SettingsPositions.newBirdsToggleY)
-        $0.zPosition = 2
-    }
-    
-    lazy var newBirdsButton = SKSpriteNode().then {
-        $0.name = "toggleNewBirds"
-        $0.position = CGPoint(x: SettingsPositions.toggleOffX + (SettingsPositions.toggleOnX - SettingsPositions.toggleOffX) / 2, y: SettingsPositions.newBirdsToggleY)
         $0.zPosition = 3
         $0.color = UIColor.clear
         $0.size = CGSize(width: 45, height: 25)
