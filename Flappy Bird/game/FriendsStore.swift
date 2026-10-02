@@ -37,10 +37,12 @@ protocol FriendsCloud {
     func find(name: String, _ done: @escaping (Result<PlayerRow?, FriendsError>) -> Void)
     /// The highest all-time bests, best first.
     func top(_ count: Int, _ done: @escaping (Result<[PlayerRow], FriendsError>) -> Void)
-    /// Writes `row` over the record `row.id` (merged with what the server
-    /// has, see FriendsLogic.merged). Answers false, writing nothing, when
-    /// the record does not exist and `createIfMissing` is off.
-    func save(_ row: PlayerRow, createIfMissing: Bool, _ done: @escaping (Result<Bool, FriendsError>) -> Void)
+    /// Writes `row` to the record `row.id`. Publishing scores
+    /// (`claimingName` off) merges with what the server has, keeps the
+    /// server's name (see FriendsLogic.merged) and answers false, writing
+    /// nothing, when the record does not exist. Claiming a name writes the
+    /// name too and creates the record when missing.
+    func save(_ row: PlayerRow, claimingName: Bool, _ done: @escaping (Result<Bool, FriendsError>) -> Void)
     func delete(id: String, _ done: @escaping (FriendsError?) -> Void)
 }
 
@@ -76,8 +78,13 @@ enum FriendsStore {
     }
 
     private(set) static var status = Status.ok
+    /// True while a name, add or delete request is waiting for the server.
+    private(set) static var isBusy = false
     private static var refreshWaiters: [() -> Void] = []
     private static var isPublishing = false
+    /// Counts name changes made on this phone, so a fetch that started
+    /// before one does not undo it when its (older) answer arrives.
+    private static var nameChanges = 0
 
     private static var defaults: UserDefaults { .standard }
 
@@ -122,14 +129,14 @@ enum FriendsStore {
         loadCache().everyone
     }
 
-    /// True once: the first time the lists load fine and the player has no
-    /// name yet, the panel asks for one.
+    /// The first time the lists load fine and the player has no name yet,
+    /// the panel asks for one. Call askedForName() once the prompt is up.
     static func shouldAskForName() -> Bool {
-        guard status == .ok, myName == nil, !defaults.bool(forKey: askedKey) else {
-            return false
-        }
+        status == .ok && myName == nil && !defaults.bool(forKey: askedKey)
+    }
+
+    static func askedForName() {
         defaults.set(true, forKey: askedKey)
-        return true
     }
 
     // MARK: Fetching
@@ -143,21 +150,18 @@ enum FriendsStore {
         }
 
         let cached = loadCache()
-        if cached.friends.isEmpty && cached.everyone.isEmpty {
+        if status == .offline || (cached.friends.isEmpty && cached.everyone.isEmpty) {
             status = .loading
         }
+
+        let nameChangesAtStart = nameChanges
 
         cloud.myID { result in
             var signedIn = true
 
             switch result {
             case .success(let id):
-                if id != myID {
-                    // Another iCloud account: the name on this phone was the
-                    // other account's.
-                    if myID != nil { forgetProfile() }
-                    myID = id
-                }
+                adoptID(id)
             case .failure(.noAccount):
                 // Lists can still be read without an account.
                 signedIn = false
@@ -173,7 +177,7 @@ enum FriendsStore {
                     return
                 }
 
-                if signedIn {
+                if signedIn && nameChanges == nameChangesAtStart {
                     if let mine = rows.first(where: { $0.id == myID }) {
                         // The server decides the name (a reinstall, or a
                         // rename made on another phone).
@@ -200,6 +204,24 @@ enum FriendsStore {
         }
     }
 
+    /// Records the signed-in player's record name. A different one means
+    /// another iCloud account: the name, friends and lists on this phone
+    /// were the other account's.
+    private static func adoptID(_ id: String) {
+        guard id != myID else {
+            return
+        }
+
+        if myID != nil {
+            forgetProfile()
+            for key in [askedKey, cacheKey, friendsKey] {
+                defaults.removeObject(forKey: key)
+            }
+        }
+
+        myID = id
+    }
+
     private static func finishRefresh(failed error: FriendsError? = nil) {
         if let error {
             status = error == .noAccount ? .noAccount : .offline
@@ -224,13 +246,14 @@ enum FriendsStore {
     private static func publish() {
         let row = myRow()
 
-        guard myName != nil, !row.id.isEmpty, !isPublishing, row != lastPublished() else {
+        guard myName != nil, !row.id.isEmpty, status != .noAccount, !isPublishing,
+              row != lastPublished() else {
             return
         }
 
         isPublishing = true
 
-        cloud.save(row, createIfMissing: false) { result in
+        cloud.save(row, claimingName: false) { result in
             isPublishing = false
 
             switch result {
@@ -256,16 +279,19 @@ enum FriendsStore {
         }
 
         func finish(_ result: NameResult) {
+            isBusy = false
             GameLog.add("friends set name: \(result)")
             done(result)
         }
+
+        isBusy = true
 
         cloud.myID { result in
             guard case .success(let id) = result else {
                 return finish(result == .failure(.noAccount) ? .noAccount : .offline)
             }
 
-            myID = id
+            adoptID(id)
 
             cloud.find(name: name) { result in
                 guard case .success(let holder) = result else {
@@ -279,14 +305,14 @@ enum FriendsStore {
                 var row = myRow()
                 row.name = name
 
-                cloud.save(row, createIfMissing: true) { result in
+                cloud.save(row, claimingName: true) { result in
                     guard case .success = result else {
                         return finish(.offline)
                     }
 
+                    nameChanges += 1
                     defaults.set(name, forKey: nameKey)
                     setLastPublished(row)
-                    status = .ok
                     finish(.ok)
                 }
             }
@@ -295,25 +321,34 @@ enum FriendsStore {
 
     /// Removes this player's name and scores from the server. The phone's
     /// own scores and the friends list stay.
-    static func deleteProfile(_ done: @escaping (Bool) -> Void) {
+    static func deleteProfile(_ done: @escaping (FriendsError?) -> Void) {
+        func finish(_ error: FriendsError?) {
+            isBusy = false
+            GameLog.add("friends delete: \(error.map { "failed, \($0)" } ?? "ok")")
+            done(error)
+        }
+
+        isBusy = true
+
         cloud.myID { result in
             guard case .success(let id) = result else {
-                GameLog.add("friends delete failed: \(result)")
-                return done(false)
+                if case .failure(let error) = result { finish(error) }
+                return
             }
+
+            adoptID(id)
 
             cloud.delete(id: id) { error in
                 if let error {
-                    GameLog.add("friends delete failed: \(error)")
-                    return done(false)
+                    return finish(error)
                 }
 
+                nameChanges += 1
                 forgetProfile()
                 var cache = loadCache()
                 cache.everyone.removeAll { $0.id == id }
                 saveCache(cache)
-                GameLog.add("friends delete ok")
-                done(true)
+                finish(nil)
             }
         }
     }
@@ -328,6 +363,7 @@ enum FriendsStore {
     /// Adds the player with exactly this name to the friends list.
     static func addFriend(name: String, _ done: @escaping (AddResult) -> Void) {
         func finish(_ result: AddResult) {
+            isBusy = false
             GameLog.add("friends add: \(result)")
             done(result)
         }
@@ -339,6 +375,8 @@ enum FriendsStore {
         guard name != myName else {
             return finish(.isYou)
         }
+
+        isBusy = true
 
         cloud.find(name: name) { result in
             guard case .success(let found) = result else {
@@ -405,6 +443,6 @@ private struct NoFriendsCloud: FriendsCloud {
     func fetch(ids: [String], _ done: @escaping (Result<[PlayerRow], FriendsError>) -> Void) { done(.failure(error)) }
     func find(name: String, _ done: @escaping (Result<PlayerRow?, FriendsError>) -> Void) { done(.failure(error)) }
     func top(_ count: Int, _ done: @escaping (Result<[PlayerRow], FriendsError>) -> Void) { done(.failure(error)) }
-    func save(_ row: PlayerRow, createIfMissing: Bool, _ done: @escaping (Result<Bool, FriendsError>) -> Void) { done(.failure(error)) }
+    func save(_ row: PlayerRow, claimingName: Bool, _ done: @escaping (Result<Bool, FriendsError>) -> Void) { done(.failure(error)) }
     func delete(id: String, _ done: @escaping (FriendsError?) -> Void) { done(error) }
 }

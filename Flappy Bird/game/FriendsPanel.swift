@@ -71,9 +71,10 @@ class FriendsPanel: SKNode {
         showPage()
     }
 
+    /// After the last EVERYONE page comes the first FRIENDS page again.
     func nextPage() {
         pageIndex += 1
-        showPage()
+        showPage(wrap: true)
     }
 
     // MARK: Pages
@@ -101,10 +102,12 @@ class FriendsPanel: SKNode {
         }
     }
 
-    private func showPage() {
+    private func showPage(wrap: Bool = false) {
         let friendPages = pages(friendEntries())
         let everyonePages = pages(everyoneEntries())
-        pageIndex %= friendPages.count + everyonePages.count
+        let pageCount = friendPages.count + everyonePages.count
+        // A redraw after the lists shrank stays on the nearest page.
+        pageIndex = wrap ? pageIndex % pageCount : min(pageIndex, pageCount - 1)
 
         let list: List = pageIndex < friendPages.count ? .friends : .everyone
         let group = list == .friends ? friendPages : everyonePages
@@ -128,6 +131,10 @@ class FriendsPanel: SKNode {
     }
 
     private var statusText: String? {
+        if FriendsStore.isBusy {
+            return "CHECKING"
+        }
+
         switch FriendsStore.status {
         case .loading: return "LOADING"
         case .offline: return "OFFLINE"
@@ -179,10 +186,16 @@ class FriendsPanel: SKNode {
             rowsNode.addChild(PanelArt.score("\(row.best)", x: Layout.bestX, y: y))
         }
 
-        // Only your own row: say how to get company.
+        // Only your own row: say how to get company. The hint is a button
+        // too, whenever "+ ADD FRIEND" above is.
         if FriendsStore.friendIDs.isEmpty {
             rowsNode.addChild(PanelArt.label("NO FRIENDS YET", size: 10, x: 0, y: rowCenterY(4)))
             rowsNode.addChild(PanelArt.label("TAP + ADD FRIEND", size: 8, x: 0, y: rowCenterY(5)))
+
+            if statusText == nil {
+                let y = (rowCenterY(4) + rowCenterY(5)) / 2
+                rowsNode.addChild(touchBox("friendsAdd", at: CGPoint(x: 0, y: y), size: CGSize(width: 200, height: 60)))
+            }
         }
     }
 

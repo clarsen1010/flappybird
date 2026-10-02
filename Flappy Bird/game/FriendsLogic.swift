@@ -31,15 +31,15 @@ enum NameRules {
 
     /// Names that are refused outright.
     private static let blockedNames: Set<String> = [
-        "ASS", "ANUS", "ANAL", "COCK", "CUM", "DICK", "FAG", "KKK", "PENIS",
-        "PORN", "PUSSY", "RAPE", "SEX", "SHIT", "SLUT", "TIT", "TITS",
-        "VAGINA", "WHORE",
+        "ASS", "ANUS", "ANAL", "COCK", "CUM", "DICK", "FAG", "KKK", "NAZI",
+        "NAZIS", "PENIS", "PORN", "PUSSY", "RAPE", "RAPIST", "SEX", "SHIT",
+        "SLUT", "TIT", "TITS", "VAGINA", "WHORE",
     ]
 
     /// Refused anywhere inside a name. Only words that do not turn up inside
-    /// ordinary names (CLASSIC and BASS7 must pass).
+    /// ordinary names (CLASSIC, BASS7, THERAPIST and NAZIR must pass).
     private static let blockedParts = [
-        "BITCH", "CUNT", "FAGGOT", "FUCK", "HITLER", "NAZI", "NIGG", "RAPIST",
+        "BITCH", "CUNT", "FAGGOT", "FUCK", "HITLER", "NIGG",
     ]
 
     /// What the name prompt keeps while typing: upper-case A-Z and 0-9,
@@ -84,11 +84,13 @@ enum FriendsLogic {
         rows.sorted { $0.best != $1.best ? $0.best > $1.best : $0.name < $1.name }
     }
 
-    /// What to store when this phone publishes over an existing record: the
-    /// name and id from this phone, and never a lower best or an older day
-    /// than the server already has (a second phone may be ahead).
+    /// What to store when this phone publishes its scores over an existing
+    /// record: the server's name stays (only claiming a name changes it; a
+    /// second phone may still hold an old one), and the best is never
+    /// lowered nor the day moved back (a second phone may be ahead).
     static func merged(server: PlayerRow, local: PlayerRow) -> PlayerRow {
         var row = local
+        row.name = server.name
         row.best = max(server.best, local.best)
         if server.dayKey > local.dayKey {
             row.dayKey = server.dayKey

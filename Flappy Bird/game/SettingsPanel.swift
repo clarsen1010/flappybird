@@ -71,7 +71,7 @@ class SettingsPanel: SKSpriteNode {
     func showName(_ name: String?) {
         nameValue.removeAllChildren()
         nameValue.addChild(PanelArt.label(
-            name ?? "TAP TO SET",
+            FriendsStore.isBusy ? "SAVING" : name ?? "TAP TO SET",
             size: 8,
             x: SettingsPositions.toggleOffX + (SettingsPositions.toggleOnX - SettingsPositions.toggleOffX) / 2,
             y: SettingsPositions.nameRowY

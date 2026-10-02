@@ -1607,6 +1607,10 @@ final class GameScene: SKScene {
     private func showSettings() {
         hideMenu()
 
+        // The name can change while Settings is closed (a fetch on the
+        // friends panel brings it back after a reinstall).
+        settingsNode.showName(FriendsStore.myName)
+
         settingsNode.setScale(0)
         addChild(settingsNode)
 
@@ -1973,7 +1977,10 @@ final class GameScene: SKScene {
             // First visit with no name yet: ask once.
             if !Self.hitButton, FriendsStore.shouldAskForName() {
                 Self.hitButton = true
-                self.askForName()
+
+                if self.askForName() {
+                    FriendsStore.askedForName()
+                }
             }
         }
 
@@ -2109,19 +2116,28 @@ final class GameScene: SKScene {
     }
 
     /// Shows an alert over the game. Only while a panel that can ask is
-    /// open and no other alert is up; otherwise the prompt is dropped and
-    /// the buttons are released.
-    private func present(_ alert: UIAlertController) {
+    /// open and no other alert is up; otherwise the prompt is dropped, the
+    /// buttons are released and the answer is false.
+    @discardableResult
+    private func present(_ alert: UIAlertController) -> Bool {
         guard friendsNode.parent != nil || settingsNode.parent != nil,
               let presenter = promptPresenter,
               presenter.presentedViewController == nil else {
             endPrompt()
-            return
+            return false
         }
 
         Self.hitButton = true
         GameLog.add("prompt shown")
         presenter.present(alert, animated: true)
+        return true
+    }
+
+    /// While a request waits for the server the panels say so (CHECKING,
+    /// SAVING); the buttons stay locked until endPrompt().
+    private func showBusy() {
+        friendsNode.reload(keepPage: true)
+        settingsNode.showName(FriendsStore.myName)
     }
 
     /// Every prompt flow ends here: redraws what a prompt can change, gives
@@ -2132,6 +2148,16 @@ final class GameScene: SKScene {
         settingsNode.showName(FriendsStore.myName)
         promptPresenter?.becomeFirstResponder()
         unlockButtons()
+
+        // A new name or a removed profile changes the lists.
+        if friendsNode.parent != nil {
+            FriendsStore.refresh { [weak self] in
+                guard let self, self.friendsNode.parent != nil else {
+                    return
+                }
+                self.friendsNode.reload(keepPage: true)
+            }
+        }
     }
 
     private func showNotice(title: String, message: String) {
@@ -2140,10 +2166,11 @@ final class GameScene: SKScene {
         })
     }
 
-    private func askForName(message: String? = nil, text: String? = nil) {
+    @discardableResult
+    private func askForName(message: String? = nil, text: String? = nil) -> Bool {
         let current = FriendsStore.myName
 
-        present(NamePrompt.name(
+        return present(NamePrompt.name(
             title: current == nil ? "Pick a name" : "Your name",
             message: message ?? "3 to 10 letters or numbers. Friends add you by this name.",
             text: text ?? current ?? "",
@@ -2169,7 +2196,13 @@ final class GameScene: SKScene {
 
                     switch result {
                     case .ok:
-                        self.endPrompt()
+                        if current == nil, self.friendsNode.parent != nil, FriendsStore.friendIDs.isEmpty {
+                            // A new player with nobody added yet: straight on
+                            // to adding the first friend.
+                            self.askForFriend()
+                        } else {
+                            self.endPrompt()
+                        }
                     case .invalid(.blocked):
                         self.askForName(message: "That name isn't allowed.", text: name)
                     case .invalid:
@@ -2182,6 +2215,8 @@ final class GameScene: SKScene {
                         self.askForName(message: "No connection. Try again later.", text: name)
                     }
                 }
+
+                self.showBusy()
             }
         })
     }
@@ -2198,15 +2233,20 @@ final class GameScene: SKScene {
                 return self.endPrompt()
             }
 
-            FriendsStore.deleteProfile { [weak self] deleted in
+            FriendsStore.deleteProfile { [weak self] error in
                 guard let self else { return }
 
-                if deleted {
+                switch error {
+                case nil:
                     self.endPrompt()
-                } else {
+                case .noAccount:
+                    self.showNotice(title: "Not deleted", message: "Sign in to iCloud in Settings first.")
+                default:
                     self.showNotice(title: "Not deleted", message: "No connection. Try again later.")
                 }
             }
+
+            self.showBusy()
         })
     }
 
@@ -2241,6 +2281,8 @@ final class GameScene: SKScene {
                     self.askForFriend(message: "No connection. Try again later.", text: name)
                 }
             }
+
+            self.showBusy()
         })
     }
 
