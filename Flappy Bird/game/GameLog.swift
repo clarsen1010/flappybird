@@ -2,7 +2,7 @@
 //  GameLog.swift
 //  FlappyBird
 //
-//  Play log for the beta (Settings > Logs, on by default): taps and how late
+//  Play log for the beta (Settings > Logs, on by default in beta builds): taps and how late
 //  they arrived, flaps, points, slow frames, and where the bird and the pipe
 //  were at each death. It exists to answer "did the game do that, or did I?"
 //  with numbers.
@@ -131,6 +131,11 @@ enum GameLog {
 
     // MARK: Setup
 
+    /// On for TestFlight and Xcode installs, off for App Store installs: the
+    /// log is for the beta. Those builds carry a "sandboxReceipt"; App Store
+    /// builds a "receipt". (The API is deprecated in iOS 18 but still answers.)
+    static let defaultOn = Bundle.main.appStoreReceiptURL?.lastPathComponent == "sandboxReceipt"
+
     /// Call once at launch, on the main thread.
     static func start() {
         guard !started else {
@@ -143,7 +148,7 @@ enum GameLog {
 
         let defaults = UserDefaults.standard
         if defaults.object(forKey: settingKey) == nil {
-            defaults.set(true, forKey: settingKey)
+            defaults.set(defaultOn, forKey: settingKey)
         }
         enabled = defaults.bool(forKey: settingKey)
         lines.reserveCapacity(1024)

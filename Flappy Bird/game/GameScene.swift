@@ -218,7 +218,7 @@ final class GameScene: SKScene {
     /// On: day or night follows the phone's appearance. Off: always day.
     private var darkMode = true
     /// On: the beta play log is recorded (see GameLog).
-    private var logsOn = true
+    private var logsOn = GameLog.defaultOn
 
     // For the play log: the last two frame times, and the last tap.
     private var lastFrameTime: TimeInterval = 0
@@ -579,7 +579,7 @@ final class GameScene: SKScene {
 
         logsOn = loadBoolSetting(
             key: GameLog.settingKey,
-            defaultValue: true
+            defaultValue: GameLog.defaultOn
         )
 
         if let choice = UserDefaults.standard.string(forKey: "birdChoice"),
