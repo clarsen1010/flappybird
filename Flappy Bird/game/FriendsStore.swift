@@ -249,7 +249,7 @@ enum FriendsStore {
 
         if myID != nil {
             forgetProfile()
-            for key in [askedKey, cacheKey, friendsKey] {
+            for key in [cacheKey, friendsKey] {
                 defaults.removeObject(forKey: key)
             }
         }
@@ -391,9 +391,12 @@ enum FriendsStore {
         }
     }
 
+    /// No name any more (deleted here or elsewhere, or another account):
+    /// the next visit to the friends panel asks for one again, once.
     private static func forgetProfile() {
         defaults.removeObject(forKey: nameKey)
         defaults.removeObject(forKey: publishedKey)
+        defaults.removeObject(forKey: askedKey)
     }
 
     // MARK: Friends
