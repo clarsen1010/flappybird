@@ -29,7 +29,7 @@ class LoadingViewController: UIViewController {
         let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? ""
         let edition = version.split(separator: ".").prefix(2).joined(separator: ".")
         infoLabel.text = """
-Flappy Bird \(edition) Edition
+Blappy Fird \(edition) Edition
 by Christian Larsen
 
 Original game © 2019 - \(Calendar.current.component(.year, from: Date()))

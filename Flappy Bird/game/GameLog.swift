@@ -13,7 +13,7 @@
 //  rounds and when the app leaves the screen, on a background queue.
 //
 //  The file is Documents/flappy-log.txt, visible in the Files app under
-//  On My iPhone > Flappy Bird. Nothing is sent anywhere.
+//  On My iPhone > Blappy Fird. Nothing is sent anywhere.
 //
 import Metal
 import MetricKit
