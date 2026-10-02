@@ -116,20 +116,39 @@ enum GameStats {
 struct Achievement {
     let id: String
     let title: String
-    let detail: String
+    /// Earned by one round with at least this score.
+    let score: Int
+
+    var detail: String { "SCORE \(score)" }
 }
 
 enum Achievements {
     static let earnedKey = "achievements"
 
     static let all = [
-        Achievement(id: "first", title: "FIRST PIPE", detail: "SCORE 1"),
-        Achievement(id: "ten", title: "TEN", detail: "SCORE 10"),
-        Achievement(id: "quarter", title: "QUARTER", detail: "SCORE 25"),
-        Achievement(id: "platinum", title: "PLATINUM", detail: "SCORE 40"),
-        Achievement(id: "fifty", title: "FIFTY", detail: "SCORE 50"),
-        Achievement(id: "century", title: "CENTURY", detail: "SCORE 100"),
+        Achievement(id: "first", title: "FIRST PIPE", score: 1),
+        Achievement(id: "ten", title: "TEN", score: 10),
+        Achievement(id: "quarter", title: "QUARTER", score: 25),
+        Achievement(id: "platinum", title: "PLATINUM", score: 40),
+        Achievement(id: "fifty", title: "FIFTY", score: 50),
+        Achievement(id: "century", title: "CENTURY", score: 100),
     ]
+
+    /// The goals past 100. The Goals page keeps them hidden until CENTURY
+    /// is earned.
+    static let legends = [
+        Achievement(id: "score150", title: "PIPE WIZARD", score: 150),
+        Achievement(id: "score200", title: "SKY PIRATE", score: 200),
+        Achievement(id: "score250", title: "BIRD BRAIN", score: 250),
+        Achievement(id: "score300", title: "SPARTAN", score: 300),
+        Achievement(id: "score400", title: "UNHINGED", score: 400),
+        Achievement(id: "score500", title: "TOUCH GRASS", score: 500),
+        Achievement(id: "score1000", title: "BIRD GOD", score: 1000),
+    ]
+
+    static var legendsUnlocked: Bool {
+        earned().contains("century")
+    }
 
     static func earned() -> Set<String> {
         Set(UserDefaults.standard.stringArray(forKey: earnedKey) ?? [])
@@ -138,13 +157,7 @@ enum Achievements {
     /// Records a finished round and returns the achievements it newly earned.
     @discardableResult
     static func record(score: Int) -> [Achievement] {
-        var goals: [String] = []
-        if score >= 1 { goals.append("first") }
-        if score >= 10 { goals.append("ten") }
-        if score >= 25 { goals.append("quarter") }
-        if score >= 40 { goals.append("platinum") }
-        if score >= 50 { goals.append("fifty") }
-        if score >= 100 { goals.append("century") }
+        let goals = (all + legends).filter { score >= $0.score }.map(\.id)
 
         var earned = earned()
         let new = goals.filter { !earned.contains($0) }
@@ -153,6 +166,6 @@ enum Achievements {
         }
         earned.formUnion(new)
         UserDefaults.standard.set(earned.sorted(), forKey: earnedKey)
-        return all.filter { new.contains($0.id) }
+        return (all + legends).filter { new.contains($0.id) }
     }
 }

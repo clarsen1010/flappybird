@@ -105,7 +105,22 @@ class BestRunsPanel: SKNode {
         "fifty": "gold-medal", "century": "platinum-medal", "platinum": "platinum-medal",
     ]
 
+    /// The goals past 100 wear the platinum medal in their own colour.
+    private static let legendTints: [String: UIColor] = [
+        "score150": UIColor(red: 0.25, green: 0.78, blue: 0.80, alpha: 1),
+        "score200": UIColor(red: 0.30, green: 0.50, blue: 0.95, alpha: 1),
+        "score250": UIColor(red: 0.62, green: 0.40, blue: 0.90, alpha: 1),
+        "score300": UIColor(red: 0.85, green: 0.22, blue: 0.25, alpha: 1),
+        "score400": UIColor(red: 0.98, green: 0.45, blue: 0.75, alpha: 1),
+        "score500": UIColor(red: 0.35, green: 0.78, blue: 0.30, alpha: 1),
+        "score1000": UIColor(red: 0.15, green: 0.13, blue: 0.16, alpha: 1),
+    ]
+
+    /// With the goals past 100 showing, the Goals page is two rows taller.
+    private static let legendRowCount = Layout.rowCount + 2
+
     private var page = Page.runs
+    private let backgroundNode = SKNode()
     private let titleNode = SKNode()
     private let rowsNode = SKNode()
 
@@ -139,7 +154,7 @@ class BestRunsPanel: SKNode {
     override init() {
         super.init()
 
-        addPanelBackground()
+        addChild(backgroundNode)
         addChild(backButton)
         addChild(backButtonTouchBox)
         addChild(nextButton)
@@ -170,10 +185,19 @@ class BestRunsPanel: SKNode {
         titleNode.addChild(makeLabel(page.title, size: 12, x: 0, y: rowCenterY(0)))
         rowsNode.removeAllChildren()
 
+        let legends = page == .goals && Achievements.legendsUnlocked
+        showBackground(rows: legends ? Self.legendRowCount : Layout.rowCount)
+
         switch page {
         case .runs: showRuns()
         case .stats: showStats()
-        case .goals: showGoals(Achievements.all)
+        case .goals:
+            if legends {
+                showMedalStrip(Achievements.all, row: 1)
+                showGoals(Achievements.legends, firstRow: 2)
+            } else {
+                showGoals(Achievements.all, firstRow: 1)
+            }
         }
     }
 
@@ -231,25 +255,47 @@ class BestRunsPanel: SKNode {
         rowsNode.addChild(makeLabel("PIPES PASSED \(all.pipes)", size: 8, x: 0, y: rowCenterY(6)))
     }
 
-    private func showGoals(_ goals: [Achievement]) {
+    private func makeMedal(_ goal: Achievement, done: Bool, scale: CGFloat, x: CGFloat, y: CGFloat) -> SKSpriteNode {
+        let tint = Self.legendTints[goal.id]
+        let name = Self.goalMedals[goal.id] ?? (tint == nil ? "copper-medal" : "platinum-medal")
+
+        return SKSpriteNode(texture: Assets.shared.sprites.textureNamed(name).then { $0.filteringMode = .nearest }).then {
+            $0.position = CGPoint(x: x, y: y)
+            $0.setScale(scale)
+            $0.zPosition = 1
+            if !done {
+                // Greyed out until earned.
+                $0.color = .gray
+                $0.colorBlendFactor = 1
+                $0.alpha = 0.4
+            } else if let tint {
+                $0.color = tint
+                $0.colorBlendFactor = 0.7
+            }
+        }
+    }
+
+    /// The six first goals in one row, once the goals past 100 are showing
+    /// (CENTURY earned means all six are).
+    private func showMedalStrip(_ goals: [Achievement], row: Int) {
+        let earned = Achievements.earned()
+        let y = rowCenterY(row)
+
+        for (index, goal) in goals.enumerated() {
+            let x = -85 + 34 * CGFloat(index)
+            rowsNode.addChild(makeMedal(goal, done: earned.contains(goal.id), scale: 0.45, x: x, y: y + 4))
+            rowsNode.addChild(makeLabel("\(goal.score)", size: 6, x: x, y: y - 11))
+        }
+    }
+
+    private func showGoals(_ goals: [Achievement], firstRow: Int) {
         let earned = Achievements.earned()
 
         for (index, goal) in goals.enumerated() {
-            let y = rowCenterY(index + 1)
+            let y = rowCenterY(index + firstRow)
             let done = earned.contains(goal.id)
 
-            let medal = SKSpriteNode(texture: Assets.shared.sprites.textureNamed(Self.goalMedals[goal.id] ?? "copper-medal").then { $0.filteringMode = .nearest }).then {
-                $0.position = CGPoint(x: -85, y: y)
-                $0.setScale(0.55)
-                $0.zPosition = 1
-                if !done {
-                    // Greyed out until earned.
-                    $0.color = .gray
-                    $0.colorBlendFactor = 1
-                    $0.alpha = 0.4
-                }
-            }
-            rowsNode.addChild(medal)
+            rowsNode.addChild(makeMedal(goal, done: done, scale: 0.55, x: -85, y: y))
 
             let text = SKNode().then { $0.alpha = done ? 1 : 0.45 }
             text.addChild(makeLabel(goal.title, size: 10, x: 5, y: y + 6))
@@ -264,8 +310,12 @@ class BestRunsPanel: SKNode {
         PanelArt.rowCenterY(row, rows: Layout.rowCount)
     }
 
-    private func addPanelBackground() {
-        PanelArt.background(rows: Layout.rowCount).forEach(addChild)
+    /// The panel with `rows` rows. Extra rows hang below: the top edge, the
+    /// title and the arrows stay where they are.
+    private func showBackground(rows: Int) {
+        backgroundNode.removeAllChildren()
+        backgroundNode.position.y = (PanelArt.height(rows: Layout.rowCount) - PanelArt.height(rows: rows)) / 2
+        PanelArt.background(rows: rows).forEach(backgroundNode.addChild)
     }
 
     private func makeLabel(_ text: String, size: CGFloat, x: CGFloat, y: CGFloat) -> SKNode {
