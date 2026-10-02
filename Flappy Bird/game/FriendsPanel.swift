@@ -3,7 +3,8 @@
 //  FlappyBird
 //
 //  Friends leaderboard: the people you added (best today, best ever, when
-//  they last played), then the top of everyone. Same frame and arrows as the
+//  they last played), the people who added you (tap to add them back), then
+//  the top of everyone. Same frame and arrows as the
 //  Best Runs panel: the right arrow flips pages, the left arrow closes.
 //
 import Foundation
@@ -26,8 +27,20 @@ class FriendsPanel: SKNode {
     }
 
     private enum List {
-        case friends, everyone
+        case friends, addedYou, everyone
+
+        var title: String {
+            switch self {
+            case .friends: return "FRIENDS"
+            case .addedYou: return "ADDED YOU"
+            case .everyone: return "EVERYONE"
+            }
+        }
     }
+
+    /// The ADDED YOU rows on screen, top to bottom; row n is the touch box
+    /// "friendsAddBack<n>".
+    private(set) var addBackRows: [PlayerRow] = []
 
     private var pageIndex = 0
     private let titleNode = SKNode()
@@ -88,6 +101,10 @@ class FriendsPanel: SKNode {
         return rows.enumerated().map { (rank: $0 + 1, row: $1, isMe: $1.id == "me") }
     }
 
+    private func addedYouEntries() -> [Entry] {
+        FriendsLogic.sorted(FriendsStore.addedYouRows()).enumerated().map { (rank: $0 + 1, row: $1, isMe: false) }
+    }
+
     private func everyoneEntries() -> [Entry] {
         let myID = FriendsStore.myID
         return FriendsStore.everyoneRows().enumerated().map { (rank: $0 + 1, row: $1, isMe: $1.id == myID) }
@@ -103,30 +120,50 @@ class FriendsPanel: SKNode {
     }
 
     private func showPage(wrap: Bool = false) {
-        let friendPages = pages(friendEntries())
-        let everyonePages = pages(everyoneEntries())
-        let pageCount = friendPages.count + everyonePages.count
+        let added = addedYouEntries()
+
+        // ADDED YOU only exists while someone is waiting on it.
+        let groups: [(list: List, pages: [[Entry]])] = [
+            (.friends, pages(friendEntries())),
+            (.addedYou, added.isEmpty ? [] : pages(added)),
+            (.everyone, pages(everyoneEntries())),
+        ]
+        let all = groups.flatMap { group in
+            group.pages.enumerated().map { (list: group.list, index: $0, count: group.pages.count, entries: $1) }
+        }
+
         // A redraw after the lists shrank stays on the nearest page.
-        pageIndex = wrap ? pageIndex % pageCount : min(pageIndex, pageCount - 1)
+        pageIndex = wrap ? pageIndex % all.count : min(pageIndex, all.count - 1)
+        let page = all[pageIndex]
 
-        let list: List = pageIndex < friendPages.count ? .friends : .everyone
-        let group = list == .friends ? friendPages : everyonePages
-        let index = list == .friends ? pageIndex : pageIndex - friendPages.count
-
-        var title = list == .friends ? "FRIENDS" : "EVERYONE"
-        if group.count > 1 {
-            title += " \(index + 1)/\(group.count)"
+        var title = page.list.title
+        if page.count > 1 {
+            title += " \(page.index + 1)/\(page.count)"
         }
 
         titleNode.removeAllChildren()
         titleNode.addChild(PanelArt.label(title, size: 12, x: 0, y: rowCenterY(0)))
         rowsNode.removeAllChildren()
+        addBackRows = []
 
-        showHeader(list)
+        showHeader(page.list)
 
-        switch list {
-        case .friends: showFriends(group[index])
-        case .everyone: showEveryone(group[index])
+        switch page.list {
+        case .friends:
+            showFriends(page.entries)
+
+            // Someone added you: point at the page that says who.
+            if !added.isEmpty {
+                rowsNode.addChild(SKSpriteNode(texture: Assets.shared.sprites.textureNamed("new").then { $0.filteringMode = .nearest }).then {
+                    $0.position = CGPoint(x: nextButton.position.x - 4, y: rowCenterY(0) - 18)
+                    $0.setScale(0.75)
+                    $0.zPosition = 1
+                })
+            }
+        case .addedYou:
+            showAddedYou(page.entries)
+        case .everyone:
+            showEveryone(page.entries)
         }
     }
 
@@ -150,6 +187,8 @@ class FriendsPanel: SKNode {
         } else if list == .friends {
             rowsNode.addChild(PanelArt.label("+ ADD FRIEND", size: 8, x: Layout.slotX, y: y, align: .left))
             rowsNode.addChild(touchBox("friendsAdd", at: CGPoint(x: Layout.slotX + 48, y: y), size: CGSize(width: 104, height: 28)))
+        } else if list == .addedYou {
+            rowsNode.addChild(PanelArt.label("TAP TO ADD BACK", size: 8, x: Layout.slotX, y: y, align: .left))
         }
 
         if list == .friends {
@@ -196,6 +235,18 @@ class FriendsPanel: SKNode {
                 let y = (rowCenterY(4) + rowCenterY(5)) / 2
                 rowsNode.addChild(touchBox("friendsAdd", at: CGPoint(x: 0, y: y), size: CGSize(width: 200, height: 60)))
             }
+        }
+    }
+
+    private func showAddedYou(_ entries: [Entry]) {
+        for (index, entry) in entries.enumerated() {
+            let y = rowCenterY(index + 2)
+
+            rowsNode.addChild(PanelArt.label("+", size: 10, x: Layout.rankX, y: y))
+            rowsNode.addChild(PanelArt.label(entry.row.name, size: 10, x: Layout.nameX, y: y, align: .left))
+            rowsNode.addChild(PanelArt.score("\(entry.row.best)", x: Layout.bestX, y: y))
+            rowsNode.addChild(touchBox("friendsAddBack\(index)", at: CGPoint(x: 0, y: y), size: CGSize(width: 226, height: 30)))
+            addBackRows.append(entry.row)
         }
     }
 

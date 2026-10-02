@@ -5,7 +5,8 @@
 //  The friends leaderboard's server: the public iCloud database of this
 //  app's own container. One "Player" record per iCloud account, readable by
 //  everyone, writable only by the account that made it (CloudKit's rule for
-//  public records). Nothing here is secret; access comes from the app's
+//  public records). It holds the name, the scores and the record names of
+//  the people that player added. Nothing here is secret; access comes from the app's
 //  signature and the player's iCloud sign-in.
 //
 //  Every call is user-initiated and gives up after ten seconds. CloudKit's
@@ -22,6 +23,7 @@ struct CloudKitFriends: FriendsCloud {
     private static let fields = ["name", "best", "dayBest", "dayKey", "lastPlayed"]
     /// CloudKit takes at most 400 records in one request.
     private static let fetchLimit = 300
+    private static let addedMeLimit = 50
 
     private static var configuration: CKOperation.Configuration {
         let configuration = CKOperation.Configuration()
@@ -91,6 +93,13 @@ struct CloudKitFriends: FriendsCloud {
         }
     }
 
+    func addedMe(id: String, _ done: @escaping (Result<[PlayerRow], FriendsError>) -> Void) {
+        run(done) {
+            let query = CKQuery(recordType: Self.recordType, predicate: NSPredicate(format: "friends CONTAINS %@", id))
+            return try await Self.query(query, limit: Self.addedMeLimit)
+        }
+    }
+
     func top(_ count: Int, _ done: @escaping (Result<[PlayerRow], FriendsError>) -> Void) {
         run(done) {
             let query = CKQuery(recordType: Self.recordType, predicate: NSPredicate(format: "best > 0"))
@@ -99,7 +108,7 @@ struct CloudKitFriends: FriendsCloud {
         }
     }
 
-    func save(_ row: PlayerRow, claimingName: Bool, _ done: @escaping (Result<Bool, FriendsError>) -> Void) {
+    func save(_ row: PlayerRow, friends: [String], claimingName: Bool, _ done: @escaping (Result<Bool, FriendsError>) -> Void) {
         run(done) {
             try await Self.database { database in
                 let recordID = CKRecord.ID(recordName: row.id)
@@ -127,6 +136,8 @@ struct CloudKitFriends: FriendsCloud {
                 record["dayBest"] = values.dayBest
                 record["dayKey"] = values.dayKey
                 record["lastPlayed"] = values.lastPlayed
+                // CloudKit has no empty lists; none means no field.
+                record["friends"] = friends.isEmpty ? nil : friends
 
                 // Refused if another phone saved in between; the next round
                 // publishes again.

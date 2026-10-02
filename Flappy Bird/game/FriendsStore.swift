@@ -10,7 +10,8 @@
 //  same record without anything being stored. What the phone keeps:
 //  - friendsName: this player's name, as last confirmed by the server.
 //  - friends: the record names of the people added. Also in the iCloud
-//    key-value store (CloudSync), so a reinstall keeps the list.
+//    key-value store (CloudSync), so a reinstall keeps the list, and on the
+//    player's public record, so the people added can see who added them.
 //  - friendsCache: the last lists fetched, shown at once and when offline.
 //  - friendsLastRound: when the last round ended ("last played").
 //
@@ -37,12 +38,14 @@ protocol FriendsCloud {
     func find(name: String, _ done: @escaping (Result<PlayerRow?, FriendsError>) -> Void)
     /// The highest all-time bests, best first.
     func top(_ count: Int, _ done: @escaping (Result<[PlayerRow], FriendsError>) -> Void)
-    /// Writes `row` to the record `row.id`. Publishing scores
+    /// The players whose friends list holds `id`.
+    func addedMe(id: String, _ done: @escaping (Result<[PlayerRow], FriendsError>) -> Void)
+    /// Writes `row` and the friends list to the record `row.id`. Publishing scores
     /// (`claimingName` off) merges with what the server has, keeps the
     /// server's name (see FriendsLogic.merged) and answers false, writing
     /// nothing, when the record does not exist. Claiming a name writes the
     /// name too and creates the record when missing.
-    func save(_ row: PlayerRow, claimingName: Bool, _ done: @escaping (Result<Bool, FriendsError>) -> Void)
+    func save(_ row: PlayerRow, friends: [String], claimingName: Bool, _ done: @escaping (Result<Bool, FriendsError>) -> Void)
     func delete(id: String, _ done: @escaping (FriendsError?) -> Void)
 }
 
@@ -74,7 +77,14 @@ enum FriendsStore {
 
     private struct Cache: Codable {
         var friends: [PlayerRow] = []
+        var addedMe: [PlayerRow] = []
         var everyone: [PlayerRow] = []
+    }
+
+    /// What was last sent, to skip sending the same again.
+    private struct Published: Codable, Equatable {
+        var row: PlayerRow
+        var friends: [String]
     }
 
     private(set) static var status = Status.ok
@@ -122,6 +132,13 @@ enum FriendsStore {
     static func friendRows() -> [PlayerRow] {
         let ids = Set(friendIDs)
         return loadCache().friends.filter { ids.contains($0.id) && $0.id != myID }
+    }
+
+    /// The people who added this player and are not on the friends list
+    /// (yet), from the last fetch.
+    static func addedYouRows() -> [PlayerRow] {
+        let ids = Set(friendIDs)
+        return loadCache().addedMe.filter { !ids.contains($0.id) && $0.id != myID }
     }
 
     /// The top of all time, from the last fetch.
@@ -188,20 +205,38 @@ enum FriendsStore {
                     }
                 }
 
-                cloud.top(everyoneCount) { result in
-                    guard case .success(let top) = result else {
+                // Who added this player: only a signed-in player has an id
+                // to look for.
+                let lookFor = signedIn ? myID : nil
+
+                addedMe(id: lookFor) { result in
+                    guard case .success(let added) = result else {
                         if case .failure(let error) = result { return finishRefresh(failed: error) }
                         return
                     }
 
-                    saveCache(Cache(friends: rows.filter { $0.id != myID }, everyone: top))
-                    status = signedIn ? .ok : .noAccount
-                    GameLog.add("friends refresh ok: \(rows.count) of \(wanted.count) records, top \(top.count)")
-                    finishRefresh()
-                    publish()
+                    cloud.top(everyoneCount) { result in
+                        guard case .success(let top) = result else {
+                            if case .failure(let error) = result { return finishRefresh(failed: error) }
+                            return
+                        }
+
+                        saveCache(Cache(friends: rows.filter { $0.id != myID }, addedMe: added, everyone: top))
+                        status = signedIn ? .ok : .noAccount
+                        GameLog.add("friends refresh ok: \(rows.count) of \(wanted.count) records, added me \(added.count), top \(top.count)")
+                        finishRefresh()
+                        publish()
+                    }
                 }
             }
         }
+    }
+
+    private static func addedMe(id: String?, _ done: @escaping (Result<[PlayerRow], FriendsError>) -> Void) {
+        guard let id else {
+            return done(.success([]))
+        }
+        cloud.addedMe(id: id, done)
     }
 
     /// Records the signed-in player's record name. A different one means
@@ -241,24 +276,26 @@ enum FriendsStore {
         publish()
     }
 
-    /// Sends this player's numbers when they changed since the last send.
-    /// A failed send is simply tried again after the next round or fetch.
+    /// Sends this player's numbers and friends list when they changed since
+    /// the last send. A failed send is simply tried again after the next
+    /// round or fetch.
     private static func publish() {
         let row = myRow()
+        let sending = Published(row: row, friends: friendIDs)
 
         guard myName != nil, !row.id.isEmpty, status != .noAccount, !isPublishing,
-              row != lastPublished() else {
+              sending != lastPublished() else {
             return
         }
 
         isPublishing = true
 
-        cloud.save(row, claimingName: false) { result in
+        cloud.save(row, friends: sending.friends, claimingName: false) { result in
             isPublishing = false
 
             switch result {
             case .success(true):
-                setLastPublished(row)
+                setLastPublished(sending)
                 GameLog.add("friends publish ok")
             case .success(false):
                 // The profile was deleted elsewhere; do not bring it back.
@@ -304,15 +341,16 @@ enum FriendsStore {
 
                 var row = myRow()
                 row.name = name
+                let sending = Published(row: row, friends: friendIDs)
 
-                cloud.save(row, claimingName: true) { result in
+                cloud.save(row, friends: sending.friends, claimingName: true) { result in
                     guard case .success = result else {
                         return finish(.offline)
                     }
 
                     nameChanges += 1
                     defaults.set(name, forKey: nameKey)
-                    setLastPublished(row)
+                    setLastPublished(sending)
                     finish(.ok)
                 }
             }
@@ -395,14 +433,31 @@ enum FriendsStore {
                 return finish(.already)
             }
 
-            defaults.set(friendIDs + [found.id], forKey: friendsKey)
-            var cache = loadCache()
-            cache.friends.removeAll { $0.id == found.id }
-            cache.friends.append(found)
-            saveCache(cache)
-            CloudSync.merge()
+            keep(found)
             finish(.added)
         }
+    }
+
+    /// Adds someone from the ADDED YOU list. No lookup is needed: the row
+    /// is already here.
+    static func addBack(_ row: PlayerRow) {
+        guard !friendIDs.contains(row.id), row.id != myID else {
+            return
+        }
+
+        keep(row)
+        GameLog.add("friends add back")
+    }
+
+    private static func keep(_ friend: PlayerRow) {
+        defaults.set(friendIDs + [friend.id], forKey: friendsKey)
+        var cache = loadCache()
+        cache.friends.removeAll { $0.id == friend.id }
+        cache.friends.append(friend)
+        saveCache(cache)
+        CloudSync.merge()
+        // The friends list on the server is how they see who added them.
+        publish()
     }
 
     // MARK: Storage
@@ -421,15 +476,15 @@ enum FriendsStore {
         }
     }
 
-    private static func lastPublished() -> PlayerRow? {
+    private static func lastPublished() -> Published? {
         guard let data = defaults.data(forKey: publishedKey) else {
             return nil
         }
-        return try? JSONDecoder().decode(PlayerRow.self, from: data)
+        return try? JSONDecoder().decode(Published.self, from: data)
     }
 
-    private static func setLastPublished(_ row: PlayerRow) {
-        if let data = try? JSONEncoder().encode(row) {
+    private static func setLastPublished(_ sent: Published) {
+        if let data = try? JSONEncoder().encode(sent) {
             defaults.set(data, forKey: publishedKey)
         }
     }

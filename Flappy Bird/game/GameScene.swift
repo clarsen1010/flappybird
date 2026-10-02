@@ -1206,6 +1206,9 @@ final class GameScene: SKScene {
         case "friendsMe":
             handleFriendsMe()
 
+        case let name? where name.hasPrefix("friendsAddBack"):
+            handleFriendsAddBack(row: Int(name.dropFirst("friendsAddBack".count)) ?? 0)
+
         case "editName":
             handleNameTap()
 
@@ -1253,7 +1256,8 @@ final class GameScene: SKScene {
         switch nodeName {
         case "play", "pause", "settings", "birdPicker", "bestRuns",
              "bestRunsBack", "bestRunsNext", "settingsBack", "friends",
-             "friendsBack", "friendsNext", "friendsAdd", "friendsMe", "editName":
+             "friendsBack", "friendsNext", "friendsAdd", "friendsMe", "editName",
+             "friendsAddBack0", "friendsAddBack1", "friendsAddBack2", "friendsAddBack3", "friendsAddBack4":
             // These ignore taps while the button lock is on.
             return (nodeName ?? "?") + (Self.hitButton ? " (locked, ignored)" : "")
         case "resume", "toggleSounds", "toggleHaptics", "toggleDarkMode",
@@ -2054,6 +2058,22 @@ final class GameScene: SKScene {
         }
 
         askForFriend()
+    }
+
+    /// A row on the ADDED YOU page: adds that player to your friends.
+    private func handleFriendsAddBack(row: Int) {
+        guard !Self.hitButton, friendsNode.addBackRows.indices.contains(row) else {
+            return
+        }
+
+        playSound(swooshSound)
+
+        if haptics {
+            impactFeedback.impactOccurred()
+        }
+
+        FriendsStore.addBack(friendsNode.addBackRows[row])
+        friendsNode.reload(keepPage: true)
     }
 
     /// Your own row, tappable while it has no name on it.
