@@ -33,6 +33,9 @@ class SettingsPanel: SKSpriteNode {
         
         addChild(versionLabel)
         
+        addChild(nameValue)
+        addChild(nameButton)
+
         addChild(soundToggle)
         addChild(soundButton)
         
@@ -62,6 +65,29 @@ class SettingsPanel: SKSpriteNode {
         $0.outlinedText = stamp.isEmpty ? version : stamp
     }
     
+    /// The player's leaderboard name, right of the NAME label.
+    private let nameValue = SKNode()
+
+    func showName(_ name: String?) {
+        nameValue.removeAllChildren()
+        nameValue.addChild(PanelArt.label(
+            name ?? "TAP TO SET",
+            size: 8,
+            x: SettingsPositions.toggleOffX + (SettingsPositions.toggleOnX - SettingsPositions.toggleOffX) / 2,
+            y: SettingsPositions.nameRowY
+        ))
+    }
+
+    /// The whole NAME row; above the label layers so a tap on the name
+    /// itself lands here.
+    lazy var nameButton = SKSpriteNode().then {
+        $0.name = "editName"
+        $0.position = CGPoint(x: 20, y: SettingsPositions.nameRowY)
+        $0.zPosition = 3
+        $0.color = UIColor.clear
+        $0.size = CGSize(width: 180, height: 28)
+    }
+
     lazy var backButton = SKSpriteNode(texture: SKTexture(imageNamed: "back-button").then { $0.filteringMode = .nearest }).then {
         $0.position = CGPoint(x: SettingsPositions.backButtonX, y: SettingsPositions.backButtonY)
         $0.zPosition = 1

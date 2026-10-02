@@ -68,14 +68,7 @@ enum BestRuns {
 class BestRunsPanel: SKNode {
 
     private enum Layout {
-        static let width: CGFloat = 230
-        static let topHeight: CGFloat = 10
-        static let rowHeight: CGFloat = 32
-        static let bottomHeight: CGFloat = 14
         static let rowCount = BestRuns.shownCount + 1 // title + rows
-
-        static let height = topHeight + rowHeight * CGFloat(rowCount) + bottomHeight
-        static let top = height / 2
 
         static let rankX: CGFloat = -80
         static let scoreX: CGFloat = -40
@@ -94,9 +87,6 @@ class BestRunsPanel: SKNode {
             }
         }
     }
-
-    private static let labelColor = UIColor(red: 252 / 255, green: 120 / 255, blue: 88 / 255, alpha: 1)
-    private static let labelShadowColor = UIColor(red: 239 / 255, green: 234 / 255, blue: 169 / 255, alpha: 1)
 
     private static let dateFormatter = DateFormatter().then {
         $0.dateFormat = "M/d/yy"
@@ -271,10 +261,43 @@ class BestRunsPanel: SKNode {
     // MARK: Building
 
     private func rowCenterY(_ row: Int) -> CGFloat {
-        Layout.top - Layout.topHeight - Layout.rowHeight * (CGFloat(row) + 0.5)
+        PanelArt.rowCenterY(row, rows: Layout.rowCount)
     }
 
     private func addPanelBackground() {
+        PanelArt.background(rows: Layout.rowCount).forEach(addChild)
+    }
+
+    private func makeLabel(_ text: String, size: CGFloat, x: CGFloat, y: CGFloat) -> SKNode {
+        PanelArt.label(text, size: size, x: x, y: y)
+    }
+
+    private func makeScoreLabel(_ text: String, x: CGFloat, y: CGFloat) -> SKNode {
+        PanelArt.score(text, x: x, y: y)
+    }
+}
+
+/// The sliced panel and its two label styles, shared by the Best Runs and
+/// Friends panels. Rows are 32 tall; row 0 is the title row.
+enum PanelArt {
+    static let topHeight: CGFloat = 10
+    static let rowHeight: CGFloat = 32
+    static let bottomHeight: CGFloat = 14
+
+    static let labelColor = UIColor(red: 252 / 255, green: 120 / 255, blue: 88 / 255, alpha: 1)
+    static let labelShadowColor = UIColor(red: 239 / 255, green: 234 / 255, blue: 169 / 255, alpha: 1)
+
+    static func height(rows: Int) -> CGFloat {
+        topHeight + rowHeight * CGFloat(rows) + bottomHeight
+    }
+
+    static func rowCenterY(_ row: Int, rows: Int) -> CGFloat {
+        height(rows: rows) / 2 - topHeight - rowHeight * (CGFloat(row) + 0.5)
+    }
+
+    static func background(rows: Int) -> [SKSpriteNode] {
+        let top = height(rows: rows) / 2
+
         func slice(_ name: String, y: CGFloat) -> SKSpriteNode {
             SKSpriteNode(texture: Assets.shared.sprites.textureNamed(name).then { $0.filteringMode = .nearest }).then {
                 $0.position = CGPoint(x: 0, y: y)
@@ -282,29 +305,31 @@ class BestRunsPanel: SKNode {
             }
         }
 
-        addChild(slice("settings-panel-top", y: Layout.top - Layout.topHeight / 2))
-
-        for row in 0 ..< Layout.rowCount {
-            addChild(slice("settings-panel-middle", y: rowCenterY(row)))
-        }
-
-        addChild(slice("settings-panel-bottom", y: -Layout.top + Layout.bottomHeight / 2))
+        return [slice("settings-panel-top", y: top - topHeight / 2)]
+            + (0 ..< rows).map { slice("settings-panel-middle", y: rowCenterY($0, rows: rows)) }
+            + [slice("settings-panel-bottom", y: -top + bottomHeight / 2)]
     }
 
     /// Salmon label with the pale drop shadow used by the Settings panel art.
     /// The SKView ignores sibling order, so the layers get explicit z.
-    private func makeLabel(_ text: String, size: CGFloat, x: CGFloat, y: CGFloat) -> SKNode {
+    static func label(
+        _ text: String,
+        size: CGFloat,
+        x: CGFloat,
+        y: CGFloat,
+        align: SKLabelHorizontalAlignmentMode = .center
+    ) -> SKNode {
         let node = SKNode()
         node.position = CGPoint(x: x, y: y)
         node.zPosition = 1
 
-        for (index, (color, offset)) in [(Self.labelShadowColor, CGPoint(x: 0, y: -1)), (Self.labelColor, .zero)].enumerated() {
+        for (index, (color, offset)) in [(labelShadowColor, CGPoint(x: 0, y: -1)), (labelColor, .zero)].enumerated() {
             node.addChild(SKLabelNode(fontNamed: "KongtextRegular").then {
                 $0.text = text
                 $0.fontSize = size
                 $0.fontColor = color
                 $0.verticalAlignmentMode = .center
-                $0.horizontalAlignmentMode = .center
+                $0.horizontalAlignmentMode = align
                 $0.position = offset
                 $0.zPosition = CGFloat(index)
             })
@@ -315,7 +340,7 @@ class BestRunsPanel: SKNode {
 
     /// Score digits in the game's own style (same fonts as the result board):
     /// white "inside" fill under the black "04b_19" outline.
-    private func makeScoreLabel(_ text: String, x: CGFloat, y: CGFloat) -> SKNode {
+    static func score(_ text: String, x: CGFloat, y: CGFloat) -> SKNode {
         let node = SKNode()
         node.position = CGPoint(x: x, y: y)
         node.zPosition = 1

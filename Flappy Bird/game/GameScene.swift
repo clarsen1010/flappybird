@@ -97,7 +97,7 @@ final class GameScene: SKScene {
         static let pipeScale: CGFloat = 2
         static let birdScale: CGFloat = 1.25
 
-        static let menuButtonSpacing: CGFloat = 90
+        static let menuButtonSpacing: CGFloat = 84
 
         static let idleFloatDistance: CGFloat = 35
         static let idleFloatDuration: TimeInterval = 1
@@ -355,6 +355,7 @@ final class GameScene: SKScene {
     private lazy var resultNode = makeResultNode()
     private lazy var settingsNode = makeSettingsNode()
     private lazy var bestRunsNode = makeBestRunsNode()
+    private lazy var friendsNode = makeFriendsNode()
 
     /// "random" or one of pickableBirds; chosen with the bird-picker button.
     private var birdChoice = "random"
@@ -453,6 +454,33 @@ final class GameScene: SKScene {
             )
         }
 
+    /// Two birds facing each other.
+    private static var friendsButton =
+        SKSpriteNode(
+            texture: blankButtonTexture.then {
+                $0.filteringMode = .nearest
+            }
+        ).then { button in
+            button.name = "friends"
+            button.setScale(1.2)
+
+            for (color, x, facing) in [("red", CGFloat(-11), CGFloat(1)), ("yellow", 11, -1)] {
+                button.addChild(
+                    SKSpriteNode(
+                        texture: Assets.shared.sprites.textureNamed("\(color)-bird-1").then {
+                            $0.filteringMode = .nearest
+                        }
+                    ).then {
+                        $0.name = "friends"
+                        $0.xScale = 0.6 * facing
+                        $0.yScale = 0.6
+                        $0.position = CGPoint(x: x, y: 1)
+                        $0.zPosition = 1
+                    }
+                )
+            }
+        }
+
     private static let pickableBirds = [
         "yellow", "red", "blue", "green", "peach", "purple", "kup"
     ]
@@ -527,6 +555,7 @@ final class GameScene: SKScene {
         refreshBirdPickerIcon()
         addChild(Self.birdPickerButton)
         addChild(Self.bestRunsButton)
+        addChild(Self.friendsButton)
         addChild(Self.settingsButton)
         addChild(playButton)
         pauseButton.removeFromParent()
@@ -605,6 +634,8 @@ final class GameScene: SKScene {
     }
 
     private func updateSettingsUI() {
+        settingsNode.showName(FriendsStore.myName)
+
         settingsNode.soundToggle.position = CGPoint(
             x: playSounds
                 ? SettingsPositions.toggleOnX
@@ -767,6 +798,17 @@ final class GameScene: SKScene {
 
     private func makeBestRunsNode() -> BestRunsPanel {
         BestRunsPanel().then {
+            $0.setScale(1.2)
+            $0.zPosition = GameZPosition.resultText + 4
+            $0.position = CGPoint(
+                x: width / 2,
+                y: height / 2 + 15
+            )
+        }
+    }
+
+    private func makeFriendsNode() -> FriendsPanel {
+        FriendsPanel().then {
             $0.setScale(1.2)
             $0.zPosition = GameZPosition.resultText + 4
             $0.position = CGPoint(
@@ -1149,6 +1191,24 @@ final class GameScene: SKScene {
         case "bestRunsNext":
             handleBestRunsNext()
 
+        case "friends":
+            handleFriendsTap()
+
+        case "friendsBack":
+            handleFriendsBack()
+
+        case "friendsNext":
+            handleFriendsNext()
+
+        case "friendsAdd":
+            handleFriendsAdd()
+
+        case "friendsMe":
+            handleFriendsMe()
+
+        case "editName":
+            handleNameTap()
+
         case "toggleSounds":
             handleSoundToggle()
 
@@ -1192,7 +1252,8 @@ final class GameScene: SKScene {
     private func tapTarget(_ nodeName: String?) -> String {
         switch nodeName {
         case "play", "pause", "settings", "birdPicker", "bestRuns",
-             "bestRunsBack", "bestRunsNext", "settingsBack":
+             "bestRunsBack", "bestRunsNext", "settingsBack", "friends",
+             "friendsBack", "friendsNext", "friendsAdd", "friendsMe", "editName":
             // These ignore taps while the button lock is on.
             return (nodeName ?? "?") + (Self.hitButton ? " (locked, ignored)" : "")
         case "resume", "toggleSounds", "toggleHaptics", "toggleDarkMode",
@@ -1408,6 +1469,11 @@ final class GameScene: SKScene {
         if isWaitingToStart {
             startAllowedAt = CACurrentMediaTime() + 0.25
         }
+
+        // Scores may have changed while the app was away.
+        if friendsNode.parent != nil {
+            refreshFriends()
+        }
     }
 
     private func handleResumeTap() {
@@ -1474,6 +1540,7 @@ final class GameScene: SKScene {
 
         Self.birdPickerButton.removeFromParent()
         Self.bestRunsButton.removeFromParent()
+        Self.friendsButton.removeFromParent()
         Self.settingsButton.removeFromParent()
         playButton.removeFromParent()
 
@@ -1604,23 +1671,24 @@ final class GameScene: SKScene {
     // MARK: Menu Row
 
     private var menuButtons: [SKSpriteNode] {
-        [Self.birdPickerButton, Self.bestRunsButton, Self.settingsButton]
+        [Self.birdPickerButton, Self.bestRunsButton, Self.friendsButton, Self.settingsButton]
     }
 
-    /// Bird picker, best runs and settings sit in one row above Play on both
-    /// the title and game-over screens.
+    /// Bird picker, best runs, friends and settings sit in one centred row
+    /// above Play on both the title and game-over screens.
     private func placeMenuButtons() {
         let y = height / 2 - 25
+        let middle = CGFloat(menuButtons.count - 1) / 2
 
         for (index, button) in menuButtons.enumerated() {
             button.position = CGPoint(
-                x: width / 2 + CGFloat(index - 1) * Constants.menuButtonSpacing,
+                x: width / 2 + (CGFloat(index) - middle) * Constants.menuButtonSpacing,
                 y: y
             )
         }
     }
 
-    /// Scales the menu away while a panel (Settings, Best Runs) is open.
+    /// Scales the menu away while a panel (Settings, Best Runs, Friends) is open.
     private func hideMenu() {
         for node in menuButtons + [playButton, isGameOver ? resultNode : bird] {
             scaleTwice(
@@ -1838,6 +1906,342 @@ final class GameScene: SKScene {
         bestRunsNode.removeFromParent()
 
         restoreMenu()
+    }
+
+    // MARK: Friends
+
+    private func handleFriendsTap() {
+        guard !Self.hitButton else {
+            return
+        }
+
+        Self.hitButton = true
+
+        playSound(swooshSound)
+
+        Self.friendsButton.setScale(1.15)
+
+        run(
+            SKAction.sequence([
+                .wait(forDuration: 0.1),
+                .run { [weak self] in
+                    guard let self else { return }
+
+                    if self.haptics {
+                        self.impactFeedback.impactOccurred()
+                    }
+                },
+                .run {
+                    Self.friendsButton.setScale(1.2)
+                },
+                .wait(forDuration: 0.1)
+            ]),
+            completion: { [weak self] in
+                self?.showFriends()
+            }
+        )
+    }
+
+    private func showFriends() {
+        hideMenu()
+
+        friendsNode.reload()
+        friendsNode.setScale(0)
+        addChild(friendsNode)
+
+        scaleTwice(
+            node: friendsNode,
+            firstScale: 1,
+            firstScaleDuration: 0.1,
+            secondScale: 1.2,
+            secondScaleDuration: 0.1
+        )
+
+        unlockButtons()
+        refreshFriends()
+    }
+
+    /// Fetches the lists; the panel shows what it has until they arrive.
+    private func refreshFriends() {
+        FriendsStore.refresh { [weak self] in
+            guard let self, self.friendsNode.parent != nil else {
+                return
+            }
+
+            self.friendsNode.reload(keepPage: true)
+
+            // First visit with no name yet: ask once.
+            if !Self.hitButton, FriendsStore.shouldAskForName() {
+                Self.hitButton = true
+                self.askForName()
+            }
+        }
+
+        // Shows LOADING while the first fetch runs.
+        friendsNode.reload(keepPage: true)
+    }
+
+    private func handleFriendsBack() {
+        guard !Self.hitButton else {
+            return
+        }
+
+        Self.hitButton = true
+
+        playSound(swooshSound)
+
+        friendsNode.backButton.setScale(0.8)
+
+        run(
+            SKAction.sequence([
+                .wait(forDuration: 0.1),
+                .run { [weak self] in
+                    guard let self else { return }
+
+                    if self.haptics {
+                        self.impactFeedback.impactOccurred()
+                    }
+
+                    self.friendsNode.backButton.setScale(1)
+                },
+                .wait(forDuration: 0.1)
+            ]),
+            completion: { [weak self] in
+                self?.hideFriends()
+                self?.unlockButtons()
+            }
+        )
+    }
+
+    private func handleFriendsNext() {
+        guard !Self.hitButton else {
+            return
+        }
+
+        playSound(swooshSound)
+
+        if haptics {
+            impactFeedback.impactOccurred()
+        }
+
+        friendsNode.nextPage()
+    }
+
+    private func hideFriends() {
+        scaleTwice(
+            node: friendsNode,
+            firstScale: 1,
+            firstScaleDuration: 0.1,
+            secondScale: 0,
+            secondScaleDuration: 0.1
+        )
+
+        friendsNode.removeFromParent()
+
+        restoreMenu()
+    }
+
+    private func handleFriendsAdd() {
+        guard takePromptTap() else {
+            return
+        }
+
+        askForFriend()
+    }
+
+    /// Your own row, tappable while it has no name on it.
+    private func handleFriendsMe() {
+        guard takePromptTap() else {
+            return
+        }
+
+        if FriendsStore.status == .noAccount {
+            showNotice(
+                title: "No iCloud",
+                message: "Sign in to iCloud in Settings to put your name on the board."
+            )
+        } else {
+            askForName()
+        }
+    }
+
+    /// The NAME row in Settings.
+    private func handleNameTap() {
+        guard takePromptTap() else {
+            return
+        }
+
+        askForName()
+    }
+
+    // MARK: Name Prompts
+
+    /// Takes the button lock for a prompt; the lock stays on until
+    /// endPrompt(), across any wait for the server.
+    private func takePromptTap() -> Bool {
+        guard !Self.hitButton else {
+            return false
+        }
+
+        Self.hitButton = true
+
+        playSound(swooshSound)
+
+        if haptics {
+            impactFeedback.impactOccurred()
+        }
+
+        return true
+    }
+
+    /// The view controller showing the game.
+    private var promptPresenter: UIViewController? {
+        var responder: UIResponder? = view
+
+        while let next = responder?.next {
+            if let controller = next as? UIViewController {
+                return controller
+            }
+            responder = next
+        }
+
+        return nil
+    }
+
+    /// Shows an alert over the game. Only while a panel that can ask is
+    /// open and no other alert is up; otherwise the prompt is dropped and
+    /// the buttons are released.
+    private func present(_ alert: UIAlertController) {
+        guard friendsNode.parent != nil || settingsNode.parent != nil,
+              let presenter = promptPresenter,
+              presenter.presentedViewController == nil else {
+            endPrompt()
+            return
+        }
+
+        Self.hitButton = true
+        GameLog.add("prompt shown")
+        presenter.present(alert, animated: true)
+    }
+
+    /// Every prompt flow ends here: redraws what a prompt can change, gives
+    /// the spacebar handler its focus back and releases the buttons.
+    private func endPrompt() {
+        GameLog.add("prompt closed")
+        friendsNode.reload(keepPage: true)
+        settingsNode.showName(FriendsStore.myName)
+        promptPresenter?.becomeFirstResponder()
+        unlockButtons()
+    }
+
+    private func showNotice(title: String, message: String) {
+        present(NamePrompt.notice(title: title, message: message) { [weak self] in
+            self?.endPrompt()
+        })
+    }
+
+    private func askForName(message: String? = nil, text: String? = nil) {
+        let current = FriendsStore.myName
+
+        present(NamePrompt.name(
+            title: current == nil ? "Pick a name" : "Your name",
+            message: message ?? "3 to 10 letters or numbers. Friends add you by this name.",
+            text: text ?? current ?? "",
+            action: "Save",
+            deleteTitle: current == nil ? nil : "Delete my name and scores"
+        ) { [weak self] answer in
+            guard let self else { return }
+
+            switch answer {
+            case .cancel:
+                self.endPrompt()
+
+            case .delete:
+                self.confirmDeleteProfile()
+
+            case .text(let name):
+                guard name != current else {
+                    return self.endPrompt()
+                }
+
+                FriendsStore.setName(name) { [weak self] result in
+                    guard let self else { return }
+
+                    switch result {
+                    case .ok:
+                        self.endPrompt()
+                    case .invalid(.blocked):
+                        self.askForName(message: "That name isn't allowed.", text: name)
+                    case .invalid:
+                        self.askForName(message: "Use 3 to 10 letters or numbers.", text: name)
+                    case .taken:
+                        self.askForName(message: "Someone already has that name.", text: name)
+                    case .noAccount:
+                        self.askForName(message: "Sign in to iCloud in Settings to put your name on the board.", text: name)
+                    case .offline:
+                        self.askForName(message: "No connection. Try again later.", text: name)
+                    }
+                }
+            }
+        })
+    }
+
+    private func confirmDeleteProfile() {
+        present(NamePrompt.confirm(
+            title: "Delete your name and scores?",
+            message: "They come off the friends lists for everyone. The scores on this phone stay.",
+            action: "Delete"
+        ) { [weak self] confirmed in
+            guard let self else { return }
+
+            guard confirmed else {
+                return self.endPrompt()
+            }
+
+            FriendsStore.deleteProfile { [weak self] deleted in
+                guard let self else { return }
+
+                if deleted {
+                    self.endPrompt()
+                } else {
+                    self.showNotice(title: "Not deleted", message: "No connection. Try again later.")
+                }
+            }
+        })
+    }
+
+    private func askForFriend(message: String? = nil, text: String = "") {
+        present(NamePrompt.name(
+            title: "Add a friend",
+            message: message ?? "Type their name exactly.",
+            text: text,
+            action: "Add"
+        ) { [weak self] answer in
+            guard let self else { return }
+
+            guard case .text(let name) = answer else {
+                return self.endPrompt()
+            }
+
+            FriendsStore.addFriend(name: name) { [weak self] result in
+                guard let self else { return }
+
+                switch result {
+                case .added:
+                    self.endPrompt()
+                case .invalid:
+                    self.askForFriend(message: "Use 3 to 10 letters or numbers.", text: name)
+                case .notFound:
+                    self.askForFriend(message: "No player is called \(name).", text: name)
+                case .isYou:
+                    self.askForFriend(message: "That's your own name.", text: name)
+                case .already:
+                    self.askForFriend(message: "\(name) is already on your list.", text: name)
+                case .offline:
+                    self.askForFriend(message: "No connection. Try again later.", text: name)
+                }
+            }
+        })
     }
 
     private func unlockButtons() {
@@ -2359,6 +2763,7 @@ final class GameScene: SKScene {
 
         // After every save above (the result board saves a new best).
         CloudSync.merge()
+        FriendsStore.roundEnded()
 
         scaleTwice(
             node: resultNode,

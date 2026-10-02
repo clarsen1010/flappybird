@@ -84,6 +84,24 @@ enum FriendsLogic {
         rows.sorted { $0.best != $1.best ? $0.best > $1.best : $0.name < $1.name }
     }
 
+    /// What to store when this phone publishes over an existing record: the
+    /// name and id from this phone, and never a lower best or an older day
+    /// than the server already has (a second phone may be ahead).
+    static func merged(server: PlayerRow, local: PlayerRow) -> PlayerRow {
+        var row = local
+        row.best = max(server.best, local.best)
+        if server.dayKey > local.dayKey {
+            row.dayKey = server.dayKey
+            row.dayBest = server.dayBest
+        } else if server.dayKey == local.dayKey {
+            row.dayBest = max(server.dayBest, local.dayBest)
+        }
+        if let theirs = server.lastPlayed, theirs > (local.lastPlayed ?? .distantPast) {
+            row.lastPlayed = theirs
+        }
+        return row
+    }
+
     /// "NOW", "5M AGO", "2H AGO", "3D AGO"; empty when never played.
     static func agoText(_ date: Date?, now: Date) -> String {
         guard let date else {
