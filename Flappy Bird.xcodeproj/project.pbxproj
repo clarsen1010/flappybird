@@ -22,6 +22,7 @@
 		DD898AFD245CCFC400478094 /* sounds in Resources */ = {isa = PBXBuildFile; fileRef = DD898AFC245CCFC400478094 /* sounds */; };
 		DD898B13245CD23A00478094 /* SettingsPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD898B0F245CD23A00478094 /* SettingsPanel.swift */; };
 		C1A5B0F22E8A000100F1A001 /* BestRunsPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1A5B0F12E8A000100F1A001 /* BestRunsPanel.swift */; };
+		C1A5B10A2E8A000100F1A001 /* CloudKitFriends.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1A5B1092E8A000100F1A001 /* CloudKitFriends.swift */; };
 		C1A5B1082E8A000100F1A001 /* NamePrompt.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1A5B1072E8A000100F1A001 /* NamePrompt.swift */; };
 		C1A5B1062E8A000100F1A001 /* FriendsPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1A5B1052E8A000100F1A001 /* FriendsPanel.swift */; };
 		C1A5B1042E8A000100F1A001 /* FriendsStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1A5B1032E8A000100F1A001 /* FriendsStore.swift */; };
@@ -72,6 +73,7 @@
 		DD898AFC245CCFC400478094 /* sounds */ = {isa = PBXFileReference; lastKnownFileType = folder; path = sounds; sourceTree = "<group>"; };
 		DD898B0F245CD23A00478094 /* SettingsPanel.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = SettingsPanel.swift; sourceTree = "<group>"; };
 		C1A5B0F12E8A000100F1A001 /* BestRunsPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BestRunsPanel.swift; sourceTree = "<group>"; };
+		C1A5B1092E8A000100F1A001 /* CloudKitFriends.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudKitFriends.swift; sourceTree = "<group>"; };
 		C1A5B1072E8A000100F1A001 /* NamePrompt.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NamePrompt.swift; sourceTree = "<group>"; };
 		C1A5B1052E8A000100F1A001 /* FriendsPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FriendsPanel.swift; sourceTree = "<group>"; };
 		C1A5B1032E8A000100F1A001 /* FriendsStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FriendsStore.swift; sourceTree = "<group>"; };
@@ -191,6 +193,7 @@
 				DD898B19245CD2C100478094 /* Actions.sks */,
 				DD898B0F245CD23A00478094 /* SettingsPanel.swift */,
 				C1A5B0F12E8A000100F1A001 /* BestRunsPanel.swift */,
+				C1A5B1092E8A000100F1A001 /* CloudKitFriends.swift */,
 				C1A5B1072E8A000100F1A001 /* NamePrompt.swift */,
 				C1A5B1052E8A000100F1A001 /* FriendsPanel.swift */,
 				C1A5B1032E8A000100F1A001 /* FriendsStore.swift */,
@@ -301,6 +304,7 @@
 				DD898B15245CD23A00478094 /* ResultBoard.swift in Sources */,
 				DD898B13245CD23A00478094 /* SettingsPanel.swift in Sources */,
 				C1A5B0F22E8A000100F1A001 /* BestRunsPanel.swift in Sources */,
+				C1A5B10A2E8A000100F1A001 /* CloudKitFriends.swift in Sources */,
 				C1A5B1082E8A000100F1A001 /* NamePrompt.swift in Sources */,
 				C1A5B1062E8A000100F1A001 /* FriendsPanel.swift in Sources */,
 				C1A5B1042E8A000100F1A001 /* FriendsStore.swift in Sources */,

@@ -47,7 +47,7 @@ protocol FriendsCloud {
 }
 
 enum FriendsStore {
-    static var cloud: FriendsCloud = NoFriendsCloud()
+    static var cloud: FriendsCloud = CloudKitFriends()
 
     /// Shared with CloudSync, which keeps this list in iCloud too.
     static let friendsKey = "friends"
@@ -433,16 +433,4 @@ enum FriendsStore {
             defaults.set(data, forKey: publishedKey)
         }
     }
-}
-
-/// Stands in until the iCloud database is set up: every call fails.
-private struct NoFriendsCloud: FriendsCloud {
-    private let error = FriendsError.failed("no server set up")
-
-    func myID(_ done: @escaping (Result<String, FriendsError>) -> Void) { done(.failure(error)) }
-    func fetch(ids: [String], _ done: @escaping (Result<[PlayerRow], FriendsError>) -> Void) { done(.failure(error)) }
-    func find(name: String, _ done: @escaping (Result<PlayerRow?, FriendsError>) -> Void) { done(.failure(error)) }
-    func top(_ count: Int, _ done: @escaping (Result<[PlayerRow], FriendsError>) -> Void) { done(.failure(error)) }
-    func save(_ row: PlayerRow, claimingName: Bool, _ done: @escaping (Result<Bool, FriendsError>) -> Void) { done(.failure(error)) }
-    func delete(id: String, _ done: @escaping (FriendsError?) -> Void) { done(error) }
 }
