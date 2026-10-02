@@ -68,11 +68,11 @@ enum FriendsStore {
     }
 
     enum NameResult: Equatable {
-        case ok, invalid(NameProblem), taken, noAccount, offline
+        case ok, invalid(NameProblem), taken, noAccount, offline, failed
     }
 
     enum AddResult: Equatable {
-        case added, invalid, notFound, isYou, already, offline
+        case added, invalid, notFound, isYou, already, offline, failed
     }
 
     private struct Cache: Codable {
@@ -92,6 +92,8 @@ enum FriendsStore {
     private(set) static var isBusy = false
     private static var refreshWaiters: [() -> Void] = []
     private static var isPublishing = false
+    /// Something changed while a send was out; send again when it is back.
+    private static var publishAgain = false
     /// Counts name changes made on this phone, so a fetch that started
     /// before one does not undo it when its (older) answer arrives.
     private static var nameChanges = 0
@@ -186,7 +188,12 @@ enum FriendsStore {
                 return finishRefresh(failed: error)
             }
 
-            let wanted = friendIDs + (signedIn ? [myID].compactMap { $0 } : [])
+            // Own record first, so it is never the one cut off by the
+            // server's limit; no id twice.
+            var wanted = signedIn ? [myID].compactMap { $0 } : []
+            for id in friendIDs where !wanted.contains(id) {
+                wanted.append(id)
+            }
 
             cloud.fetch(ids: wanted) { result in
                 guard case .success(let rows) = result else {
@@ -221,7 +228,14 @@ enum FriendsStore {
                             return
                         }
 
-                        saveCache(Cache(friends: rows.filter { $0.id != myID }, addedMe: added, everyone: top))
+                        // Friends added while this fetch was out were not
+                        // asked for; keep their rows.
+                        let addedMeanwhile = loadCache().friends.filter { !wanted.contains($0.id) }
+                        saveCache(Cache(
+                            friends: rows.filter { $0.id != myID } + addedMeanwhile,
+                            addedMe: added,
+                            everyone: top
+                        ))
                         status = signedIn ? .ok : .noAccount
                         GameLog.add("friends refresh ok: \(rows.count) of \(wanted.count) records, added me \(added.count), top \(top.count)")
                         finishRefresh()
@@ -283,8 +297,12 @@ enum FriendsStore {
         let row = myRow()
         let sending = Published(row: row, friends: friendIDs)
 
-        guard myName != nil, !row.id.isEmpty, status != .noAccount, !isPublishing,
-              sending != lastPublished() else {
+        guard myName != nil, !row.id.isEmpty, status != .noAccount, sending != lastPublished() else {
+            return
+        }
+
+        guard !isPublishing else {
+            publishAgain = true
             return
         }
 
@@ -292,6 +310,12 @@ enum FriendsStore {
 
         cloud.save(row, friends: sending.friends, claimingName: false) { result in
             isPublishing = false
+            defer {
+                if publishAgain {
+                    publishAgain = false
+                    publish()
+                }
+            }
 
             switch result {
             case .success(true):
@@ -323,16 +347,24 @@ enum FriendsStore {
 
         isBusy = true
 
+        func failure<T>(_ result: Result<T, FriendsError>) -> NameResult {
+            switch result {
+            case .failure(.noAccount): return .noAccount
+            case .failure(.offline): return .offline
+            default: return .failed
+            }
+        }
+
         cloud.myID { result in
             guard case .success(let id) = result else {
-                return finish(result == .failure(.noAccount) ? .noAccount : .offline)
+                return finish(failure(result))
             }
 
             adoptID(id)
 
             cloud.find(name: name) { result in
                 guard case .success(let holder) = result else {
-                    return finish(.offline)
+                    return finish(failure(result))
                 }
 
                 if let holder, holder.id != id {
@@ -345,7 +377,7 @@ enum FriendsStore {
 
                 cloud.save(row, friends: sending.friends, claimingName: true) { result in
                     guard case .success = result else {
-                        return finish(.offline)
+                        return finish(failure(result))
                     }
 
                     nameChanges += 1
@@ -421,7 +453,7 @@ enum FriendsStore {
 
         cloud.find(name: name) { result in
             guard case .success(let found) = result else {
-                return finish(.offline)
+                return finish(result == .failure(.offline) ? .offline : .failed)
             }
 
             guard let found else {

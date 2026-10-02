@@ -23,7 +23,7 @@ struct CloudKitFriends: FriendsCloud {
     private static let fields = ["name", "best", "dayBest", "dayKey", "lastPlayed"]
     /// CloudKit takes at most 400 records in one request.
     private static let fetchLimit = 300
-    private static let addedMeLimit = 50
+    private static let addedMeLimit = 100
 
     private static var configuration: CKOperation.Configuration {
         let configuration = CKOperation.Configuration()
@@ -40,13 +40,10 @@ struct CloudKitFriends: FriendsCloud {
             let container = CKContainer(identifier: Self.containerID)
 
             return try await container.configuredWith(configuration: Self.configuration) { container in
-                switch try await container.accountStatus() {
-                case .available:
-                    break
-                case .noAccount, .restricted:
+                // Anything but a usable account reads as "no account": the
+                // lists can still be fetched without one.
+                guard try await container.accountStatus() == .available else {
                     throw FriendsError.noAccount
-                default:
-                    throw FriendsError.offline
                 }
 
                 // The same on every phone and after a reinstall, so nothing
@@ -114,9 +111,17 @@ struct CloudKitFriends: FriendsCloud {
                 let recordID = CKRecord.ID(recordName: row.id)
                 let record: CKRecord
                 var values = row
+                var allFriends = friends
 
                 do {
                     record = try await database.record(for: recordID)
+
+                    // Friends are never removed, so the list only grows: a
+                    // phone whose own list has not arrived yet (a reinstall)
+                    // must not empty the one on the server.
+                    for id in record["friends"] as? [String] ?? [] where !allFriends.contains(id) {
+                        allFriends.append(id)
+                    }
 
                     if let server = Self.row(record) {
                         values = FriendsLogic.merged(server: server, local: row)
@@ -137,7 +142,7 @@ struct CloudKitFriends: FriendsCloud {
                 record["dayKey"] = values.dayKey
                 record["lastPlayed"] = values.lastPlayed
                 // CloudKit has no empty lists; none means no field.
-                record["friends"] = friends.isEmpty ? nil : friends
+                record["friends"] = allFriends.isEmpty ? nil : allFriends
 
                 // Refused if another phone saved in between; the next round
                 // publishes again.
@@ -236,7 +241,7 @@ struct CloudKitFriends: FriendsCloud {
         }
 
         switch error.code {
-        case .notAuthenticated:
+        case .notAuthenticated, .accountTemporarilyUnavailable:
             return .noAccount
         case .networkUnavailable, .networkFailure, .serviceUnavailable, .requestRateLimited, .zoneBusy,
              .serverResponseLost:

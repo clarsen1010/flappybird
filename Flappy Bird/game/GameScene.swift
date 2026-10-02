@@ -2233,6 +2233,8 @@ final class GameScene: SKScene {
                         self.askForName(message: "Sign in to iCloud in Settings to put your name on the board.", text: name)
                     case .offline:
                         self.askForName(message: "No connection. Try again later.", text: name)
+                    case .failed:
+                        self.askForName(message: "That didn't work. Try again.", text: name)
                     }
                 }
 
@@ -2261,8 +2263,10 @@ final class GameScene: SKScene {
                     self.endPrompt()
                 case .noAccount:
                     self.showNotice(title: "Not deleted", message: "Sign in to iCloud in Settings first.")
-                default:
+                case .offline:
                     self.showNotice(title: "Not deleted", message: "No connection. Try again later.")
+                case .failed:
+                    self.showNotice(title: "Not deleted", message: "That didn't work. Try again.")
                 }
             }
 
@@ -2299,6 +2303,8 @@ final class GameScene: SKScene {
                     self.askForFriend(message: "\(name) is already on your list.", text: name)
                 case .offline:
                     self.askForFriend(message: "No connection. Try again later.", text: name)
+                case .failed:
+                    self.askForFriend(message: "That didn't work. Try again.", text: name)
                 }
             }
 

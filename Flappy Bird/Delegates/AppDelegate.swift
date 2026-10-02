@@ -30,6 +30,10 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         // Pull scores and stats from iCloud before any screen reads them.
         CloudSync.start()
 
+        // Goals added later than a player's best (150 and up arrived in
+        // 5.2) are earned from that best; nothing changes otherwise.
+        Achievements.record(score: ResultBoard.bestScore())
+
         activateAudioSession("launch")
 
         // A call, Siri or an alarm deactivates the session; turn it back on
