@@ -1,0 +1,19 @@
+DEFINE SCHEMA
+
+    RECORD TYPE Player (
+        "___createTime" TIMESTAMP,
+        "___createdBy"  REFERENCE,
+        "___etag"       STRING,
+        "___modTime"    TIMESTAMP,
+        "___modifiedBy" REFERENCE,
+        "___recordID"   REFERENCE QUERYABLE,
+        best            INT64 QUERYABLE SORTABLE,
+        dayBest         INT64 QUERYABLE SORTABLE,
+        dayKey          STRING QUERYABLE SEARCHABLE SORTABLE,
+        friends         LIST<STRING> QUERYABLE SEARCHABLE,
+        lastPlayed      TIMESTAMP QUERYABLE SORTABLE,
+        name            STRING QUERYABLE SEARCHABLE SORTABLE,
+        GRANT WRITE TO "_creator",
+        GRANT CREATE TO "_icloud",
+        GRANT READ TO "_world"
+    );
