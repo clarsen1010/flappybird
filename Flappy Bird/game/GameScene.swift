@@ -2280,7 +2280,7 @@ final class GameScene: SKScene {
 
         return present(NamePrompt.name(
             title: current == nil ? "Pick a name" : "Your name",
-            message: message ?? "3 to 10 letters or numbers. Friends add you by this name.",
+            message: message ?? "3 to 10 letters or numbers. Friends add you by this name. Everyone can see it and your scores.",
             text: text ?? current ?? "",
             action: "Save",
             deleteTitle: current == nil ? nil : "Delete my name and scores"
