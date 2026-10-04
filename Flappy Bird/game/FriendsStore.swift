@@ -214,6 +214,12 @@ enum FriendsStore {
         return loadCache().addedMe.filter { !ids.contains($0.id) && $0.id != myID }
     }
 
+    /// For the Game Over card: the friend just ahead of this player's best
+    /// in `mode` and the points that pass them, from the last fetch.
+    static func chaseTarget(mode: GameMode) -> (name: String, points: Int)? {
+        FriendsLogic.chaseTarget(friends: friendRows(), mode: mode, myBest: ResultBoard.best(mode: mode))
+    }
+
     /// Friends who added this player too, from the last fetch.
     static func mutualIDs() -> Set<String> {
         FriendsLogic.mutualIDs(friends: friendIDs, addedMe: loadCache().addedMe.map(\.id))

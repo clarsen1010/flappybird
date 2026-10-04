@@ -39,6 +39,8 @@ public class ResultBoard: SKSpriteNode {
         addChild(medal)
         addChild(modeTag)
         addChild(modeTagInside)
+        addChild(chaseLabelShadow)
+        addChild(chaseLabel)
         self.score = score
     }
     
@@ -57,6 +59,23 @@ public class ResultBoard: SKSpriteNode {
         $0.fontColor = SKColor.white
         $0.verticalAlignmentMode = .center
         $0.position = CGPoint(x: frame.midX - 0.37, y: frame.midY + 44)
+    }
+
+    // Just above the card, white on the sky with a dark edge under it.
+    private lazy var chaseLabel = SKLabelNode(fontNamed: "KongtextRegular").then {
+        $0.zPosition = GamezPosition.resultText + 1
+        $0.fontSize = 8
+        $0.fontColor = SKColor.white
+        $0.verticalAlignmentMode = .center
+        $0.position = CGPoint(x: frame.midX, y: frame.midY + 68)
+    }
+
+    private lazy var chaseLabelShadow = SKLabelNode(fontNamed: "KongtextRegular").then {
+        $0.zPosition = GamezPosition.resultText
+        $0.fontSize = 8
+        $0.fontColor = PanelButton.textColor
+        $0.verticalAlignmentMode = .center
+        $0.position = CGPoint(x: frame.midX, y: frame.midY + 67)
     }
 
     private lazy var currentScore = SKLabelNode(fontNamed: "04b_19").then {
@@ -120,6 +139,15 @@ public class ResultBoard: SKSpriteNode {
         didSet {
             modeTag.text = mode == .normal ? "" : mode.title
             modeTagInside.text = modeTag.text
+        }
+    }
+
+    /// A line over the card: who is just ahead ("8 TO BEAT ALEX"). Nil
+    /// for none.
+    var chase: String? {
+        didSet {
+            chaseLabel.text = chase
+            chaseLabelShadow.text = chase
         }
     }
 

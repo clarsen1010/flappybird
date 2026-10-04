@@ -9,6 +9,7 @@
 
 import AVFoundation
 import SpriteKit
+import StoreKit
 
 // MARK: - Extensions
 
@@ -456,6 +457,13 @@ final class GameScene: SKScene {
     private lazy var pauseButton = makePauseButton()
     private lazy var resumeButton = makeResumeButton()
     private lazy var pauseOverlay = makePauseOverlay()
+
+    /// On the pause screen: ends the round and goes to the menu.
+    private lazy var pauseMenuButton = PanelButton(name: "pauseMenu", text: "MENU", width: 96, hit: CGSize(width: 110, height: 50)).then {
+        $0.setScale(1.5)
+        $0.position = CGPoint(x: width / 2, y: height / 2)
+        $0.zPosition = 100
+    }
 
     private var isPausedByUser = false
 
@@ -1301,6 +1309,9 @@ final class GameScene: SKScene {
         case "resume":
             handleResumeTap()
 
+        case "pauseMenu":
+            handlePauseMenu()
+
         case "settings":
             handleSettingsTap()
 
@@ -1415,7 +1426,7 @@ final class GameScene: SKScene {
              "toggleSounds", "toggleHaptics", "toggleDarkMode", "toggleLogs":
             // These ignore taps while the button lock is on.
             return (nodeName ?? "?") + (Self.hitButton ? " (locked, ignored)" : "")
-        case "resume":
+        case "resume", "pauseMenu":
             return nodeName ?? "?"
         default:
             if openPanel != nil {
@@ -1607,7 +1618,29 @@ final class GameScene: SKScene {
         resumeButton.setScale(Constants.pauseButtonScale)
         addChild(resumeButton)
 
+        pauseMenuButton.removeFromParent()
+        addChild(pauseMenuButton)
+
         isPaused = true
+    }
+
+    /// MENU on the pause screen: the round ends here, with its score, and
+    /// the Game Over screen brings the menu.
+    private func handlePauseMenu() {
+        guard isPausedByUser else {
+            return
+        }
+
+        isPaused = false
+        isPausedByUser = false
+        skipFrameLog = true
+        lastUpdateTime = 0
+        GameLog.add("ended from pause")
+        GameLog.shownLive(true)
+
+        // gameOver() takes the pause screen down, and the bird falls to
+        // the ground as after a hit.
+        gameOver()
     }
 
     /// Control Center, a call or leaving the app mid-round pauses the game
@@ -1670,6 +1703,7 @@ final class GameScene: SKScene {
 
         resumeButton.removeAllActions()
         resumeButton.removeFromParent()
+        pauseMenuButton.removeFromParent()
 
         pauseOverlay.run(
             .sequence([
@@ -3134,6 +3168,7 @@ final class GameScene: SKScene {
         resumeButton.removeFromParent()
         pauseOverlay.removeFromParent()
 
+        pauseMenuButton.removeFromParent()
         removeAction(forKey: "revive")
         bird.alpha = 1
         heartNode.removeFromParent()
@@ -3256,6 +3291,8 @@ final class GameScene: SKScene {
         }
         Achievements.record(score: score, mode: roundMode)
 
+        let bestBefore = ResultBoard.best(mode: roundMode)
+
         resultNode.setScale(0)
         resultNode.mode = roundMode
         resultNode.score = score
@@ -3264,6 +3301,13 @@ final class GameScene: SKScene {
         // After every save above (the result board saves a new best).
         CloudSync.merge()
         FriendsStore.roundEnded(mode: roundMode)
+
+        // Who to go after next, among the friends last fetched.
+        resultNode.chase = FriendsStore.chaseTarget(mode: roundMode).map { "\($0.points) TO BEAT \($0.name)" }
+
+        if roundMode == .normal, score > bestBefore {
+            askForRating(newBest: score)
+        }
 
         scaleTwice(
             node: resultNode,
@@ -3331,6 +3375,35 @@ final class GameScene: SKScene {
     }
 
 
+    /// After a new best worth being pleased about, once per version, the
+    /// system may ask for an App Store rating (it decides whether to, and
+    /// never does on TestFlight).
+    private func askForRating(newBest: Int) {
+        let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? ""
+        let defaults = UserDefaults.standard
+
+        guard newBest >= 20, defaults.string(forKey: "ratingAskedVersion") != version else {
+            return
+        }
+
+        defaults.set(version, forKey: "ratingAskedVersion")
+
+        // Once the card has counted up and the buttons are in.
+        run(.sequence([
+            .wait(forDuration: 2.5),
+            .run { [weak self] in
+                guard let self, self.isGameOver, self.openPanel == nil,
+                      let windowScene = self.view?.window?.windowScene else {
+                    return
+                }
+
+                if #available(iOS 16.0, *) {
+                    AppStore.requestReview(in: windowScene)
+                }
+            }
+        ]))
+    }
+
     // MARK: Reset
 
     private func resetScene() {
@@ -3341,6 +3414,7 @@ final class GameScene: SKScene {
         resumeButton.removeFromParent()
         pauseOverlay.removeFromParent()
         
+        pauseMenuButton.removeFromParent()
         pipes.removeAllChildren()
 
         resultNode.removeFromParent()

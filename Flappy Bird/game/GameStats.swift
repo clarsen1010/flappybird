@@ -113,6 +113,28 @@ enum GameStats {
 
         return PeriodStats(games: games, pipes: pipes, best: best)
     }
+
+    /// Days in a row with at least one round, counting back from today;
+    /// a streak kept up to yesterday still stands until today ends.
+    static func streak(now: Date = Date()) -> Int {
+        streak(dayKeys: Set(loadDays().keys), now: now)
+    }
+
+    static func streak(dayKeys: Set<String>, now: Date) -> Int {
+        let calendar = dayFormatter.calendar ?? Calendar(identifier: .gregorian)
+        var day = now
+
+        if !dayKeys.contains(dayFormatter.string(from: day)) {
+            day = calendar.date(byAdding: .day, value: -1, to: day) ?? day
+        }
+
+        var count = 0
+        while dayKeys.contains(dayFormatter.string(from: day)), count < 10_000 {
+            count += 1
+            day = calendar.date(byAdding: .day, value: -1, to: day) ?? day
+        }
+        return count
+    }
 }
 
 // MARK: - Achievements

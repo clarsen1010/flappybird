@@ -390,7 +390,11 @@ class FriendsPanel: SKNode {
                 rowsNode.addChild(touchBox("friendsMe", at: CGPoint(x: 0, y: y), size: CGSize(width: 226, height: 30)))
             }
 
-            rowsNode.addChild(PanelArt.label("\(entry.rank)", size: 8, x: Layout.rankX, y: y))
+            if entry.rank == 1, row.best(viewMode) > 0 {
+                rowsNode.addChild(PanelArt.crown(x: Layout.rankX, y: y))
+            } else {
+                rowsNode.addChild(PanelArt.label("\(entry.rank)", size: 8, x: Layout.rankX, y: y))
+            }
             rowsNode.addChild(PanelArt.label(name, size: 10, x: Layout.nameX, y: y + 6, align: .left))
             rowsNode.addChild(PanelArt.label(FriendsLogic.agoText(row.lastPlayed, now: now), size: 8, x: Layout.nameX, y: y - 7, align: .left))
 
@@ -487,7 +491,11 @@ class FriendsPanel: SKNode {
             addOwnRowBand(y: y)
         }
 
-        rowsNode.addChild(PanelArt.label(rank, size: 8, x: Layout.rankX, y: y))
+        if entry.rank == 1 {
+            rowsNode.addChild(PanelArt.crown(x: Layout.rankX, y: y))
+        } else {
+            rowsNode.addChild(PanelArt.label(rank, size: 8, x: Layout.rankX, y: y))
+        }
         rowsNode.addChild(PanelArt.label(entry.name, size: 10, x: Layout.nameX, y: y, align: .left))
         // A little left of the BEST column: three digits must clear the edge.
         rowsNode.addChild(PanelArt.score("\(entry.value)", x: Layout.bestX - 4, y: y))

@@ -118,6 +118,18 @@ class BestRunsPanel: SKNode {
         $0.dateFormat = "h:mm a"
     }
 
+    /// TODAY, YESTERDAY, "3D AGO" for the last week, then the date.
+    static func dayText(_ date: Date, now: Date, calendar: Calendar = .current) -> String {
+        let days = calendar.dateComponents([.day], from: calendar.startOfDay(for: date), to: calendar.startOfDay(for: now)).day ?? 0
+
+        switch days {
+        case ...0: return "TODAY"
+        case 1: return "YESTERDAY"
+        case 2...6: return "\(days)D AGO"
+        default: return dateFormatter.string(from: date)
+        }
+    }
+
     /// Each goal reuses a medal from the result board.
     private static let goalMedals = [
         "first": "copper-medal", "ten": "copper-medal", "quarter": "silver-medal",
@@ -239,10 +251,11 @@ class BestRunsPanel: SKNode {
 
             // Date over time: one line does not fit the 230-wide panel.
             if let date = run.date {
-                rowsNode.addChild(makeLabel(Self.dateFormatter.string(from: date), size: 10, x: Layout.dateX, y: y + 6))
+                rowsNode.addChild(makeLabel(Self.dayText(date, now: Date()), size: 10, x: Layout.dateX, y: y + 6))
                 rowsNode.addChild(makeLabel(Self.timeFormatter.string(from: date), size: 8, x: Layout.dateX, y: y - 7))
             } else {
-                rowsNode.addChild(makeLabel("--", size: 10, x: Layout.dateX, y: y))
+                // From before the game kept dates.
+                rowsNode.addChild(makeLabel("EARLIER", size: 8, x: Layout.dateX, y: y))
             }
 
             // The run you just played.
@@ -274,7 +287,10 @@ class BestRunsPanel: SKNode {
         }
 
         let all = GameStats.summary(.all)
-        rowsNode.addChild(makeLabel("PIPES PASSED \(all.pipes)", size: 8, x: 0, y: rowCenterY(6)))
+        rowsNode.addChild(makeLabel("PIPES PASSED \(all.pipes)", size: 8, x: 0, y: rowCenterY(6) + 6))
+
+        let streak = GameStats.streak()
+        rowsNode.addChild(makeLabel(streak == 1 ? "1 DAY IN A ROW" : "\(streak) DAYS IN A ROW", size: 8, x: 0, y: rowCenterY(6) - 7))
     }
 
     private func makeMedal(_ goal: Achievement, done: Bool, scale: CGFloat, x: CGFloat, y: CGFloat) -> SKSpriteNode {
@@ -312,6 +328,8 @@ class BestRunsPanel: SKNode {
 
     private func showGoals(_ goals: [Achievement], firstRow: Int) {
         let earned = Achievements.earned()
+        // The one to go for: the first not earned yet.
+        let next = goals.first { !earned.contains($0.id) }?.id
 
         for (index, goal) in goals.enumerated() {
             let y = rowCenterY(index + firstRow)
@@ -319,7 +337,11 @@ class BestRunsPanel: SKNode {
 
             rowsNode.addChild(makeMedal(goal, done: done, scale: 0.55, x: -85, y: y))
 
-            let text = SKNode().then { $0.alpha = done ? 1 : 0.45 }
+            if goal.id == next {
+                rowsNode.addChild(makeLabel("NEXT", size: 8, x: 92, y: y))
+            }
+
+            let text = SKNode().then { $0.alpha = done || goal.id == next ? 1 : 0.45 }
             text.addChild(makeLabel(goal.title, size: 10, x: 5, y: y + 6))
             text.addChild(makeLabel(goal.detail, size: 8, x: 5, y: y - 7))
             rowsNode.addChild(text)
@@ -383,6 +405,14 @@ enum PanelArt {
     static func modeBox(name: String) -> PanelButton {
         PanelButton(name: name, text: GameMode.normal.title, textSize: 8, width: 96, height: 30, hit: CGSize(width: 100, height: 44)).then {
             $0.position.x = -84
+        }
+    }
+
+    /// A small crown for whoever is first, in place of the "1".
+    static func crown(x: CGFloat, y: CGFloat) -> SKSpriteNode {
+        SKSpriteNode(texture: Assets.shared.sprites.textureNamed("crown").then { $0.filteringMode = .nearest }).then {
+            $0.position = CGPoint(x: x, y: y)
+            $0.zPosition = 1
         }
     }
 
