@@ -16,14 +16,18 @@ class FriendsPanel: SKNode {
         static let rowCount = 8 // tabs, column header, five players, a spare row
         static let playersPerPage = 5
 
-        static let slotX: CGFloat = -104 // left edge of "+ ADD FRIEND"
+        static let slotX: CGFloat = -104 // left edge of the header row
         static let rankX: CGFloat = -101
         static let nameX: CGFloat = -86 // left edge; ten characters end at 14
         static let todayX: CGFloat = 44
         static let bestX: CGFloat = 90
 
+        static let mutualX: CGFloat = -22 // left edge, after the longest "99D AGO"
+
         // The Settings toggle-slot colour, behind your own row.
         static let ownRowColor = UIColor(red: 197 / 255, green: 194 / 255, blue: 141 / 255, alpha: 1)
+        // Behind a row that was just added.
+        static let newRowColor = PanelButton.textColor.withAlphaComponent(0.18)
     }
 
     private enum List: CaseIterable {
@@ -42,6 +46,15 @@ class FriendsPanel: SKNode {
     /// The ADDED YOU rows on screen, top to bottom; row n is the touch box
     /// "friendsAddBack<n>".
     private(set) var addBackRows: [PlayerRow] = []
+
+    /// The friends on screen, top to bottom; row n is the touch box
+    /// "friendsRow<n>" (tap to remove). Nil for your own row.
+    private(set) var friendRowsOnPage: [PlayerRow?] = []
+
+    // "ADDED ALEX" / "REMOVED ALEX" over the header row for a moment, and
+    // the row it is about.
+    private var message: String?
+    private var highlightID: String?
 
     // The page showing: a list and a page within it. Kept per list so that
     // a redraw (a fetch arrived, someone was added back) stays on the list
@@ -101,8 +114,39 @@ class FriendsPanel: SKNode {
         if !keepPage {
             list = .friends
             listPage = 0
+            clearMessage()
         }
         showPage()
+    }
+
+    /// Says what just happened ("ADDED ALEX") on the header row for a
+    /// moment. With `jumpTo`, also turns to that player's row on FRIENDS
+    /// and marks it.
+    func show(message text: String, jumpTo id: String? = nil) {
+        clearMessage()
+        message = text
+
+        if let id {
+            list = .friends
+            listPage = FriendsLogic.pageIndex(of: id, in: friendEntries().map(\.row.id), perPage: Layout.playersPerPage) ?? 0
+            highlightID = id
+        }
+
+        showPage()
+
+        run(.sequence([
+            .wait(forDuration: 2.5),
+            .run { [weak self] in
+                self?.clearMessage()
+                self?.showPage()
+            }
+        ]), withKey: "message")
+    }
+
+    private func clearMessage() {
+        removeAction(forKey: "message")
+        message = nil
+        highlightID = nil
     }
 
     /// A tap on one of the tab words.
@@ -112,6 +156,7 @@ class FriendsPanel: SKNode {
         }
         list = tapped
         listPage = 0
+        clearMessage()
         showPage()
     }
 
@@ -189,8 +234,14 @@ class FriendsPanel: SKNode {
         ).forEach(titleNode.addChild)
         rowsNode.removeAllChildren()
         addBackRows = []
+        friendRowsOnPage = []
 
         showHeader(list, isEmpty: entries.isEmpty)
+
+        if list == .addedYou {
+            // Looked at: they no longer count as new.
+            FriendsStore.markAddedSeen()
+        }
 
         switch list {
         case .friends: showFriends(group[listPage])
@@ -214,11 +265,27 @@ class FriendsPanel: SKNode {
     private func showHeader(_ list: List, isEmpty: Bool) {
         let y = rowCenterY(1)
 
-        if let statusText {
+        if let message {
+            rowsNode.addChild(PanelArt.label(message, size: 8, x: 0, y: y))
+            return
+        }
+
+        if list == .friends {
+            // A button; while a request is out it says so instead, dimmed
+            // and deaf, in the same place.
+            let button = PanelButton(
+                name: "friendsAdd",
+                text: statusText ?? "+ ADD FRIEND",
+                textSize: 8,
+                width: 112,
+                height: 26,
+                hit: CGSize(width: 112, height: 30)
+            )
+            button.position = CGPoint(x: Layout.slotX + 56, y: y)
+            button.isEnabled = statusText == nil
+            rowsNode.addChild(button)
+        } else if let statusText {
             rowsNode.addChild(PanelArt.label(statusText, size: 8, x: Layout.slotX, y: y, align: .left))
-        } else if list == .friends {
-            rowsNode.addChild(PanelArt.label("+ ADD FRIEND", size: 8, x: Layout.slotX, y: y, align: .left))
-            rowsNode.addChild(touchBox("friendsAdd", at: CGPoint(x: Layout.slotX + 48, y: y), size: CGSize(width: 104, height: 28)))
         } else if list == .addedYou, !isEmpty {
             rowsNode.addChild(PanelArt.label("TAP TO ADD BACK", size: 8, x: Layout.slotX, y: y, align: .left))
         }
@@ -232,6 +299,7 @@ class FriendsPanel: SKNode {
     private func showFriends(_ entries: [Entry]) {
         let today = GameStats.dayFormatter.string(from: Date())
         let now = Date()
+        let mutual = FriendsStore.mutualIDs()
 
         for (index, entry) in entries.enumerated() {
             let y = rowCenterY(index + 2)
@@ -239,7 +307,17 @@ class FriendsPanel: SKNode {
 
             if entry.isMe {
                 addOwnRowBand(y: y)
+            } else {
+                if row.id == highlightID {
+                    addRowBand(Layout.newRowColor, y: y)
+                }
+                if mutual.contains(row.id) {
+                    rowsNode.addChild(PanelArt.label("MUTUAL", size: 8, x: Layout.mutualX, y: y - 7, align: .left))
+                }
+                // The row itself: tap to remove this friend.
+                rowsNode.addChild(touchBox("friendsRow\(index)", at: CGPoint(x: 0, y: y), size: CGSize(width: 226, height: 30)))
             }
+            friendRowsOnPage.append(entry.isMe ? nil : row)
 
             var name = row.name
             if entry.isMe && name.isEmpty {
@@ -267,7 +345,16 @@ class FriendsPanel: SKNode {
                 let y = (rowCenterY(4) + rowCenterY(5)) / 2
                 rowsNode.addChild(touchBox("friendsAdd", at: CGPoint(x: 0, y: y), size: CGSize(width: 200, height: 60)))
             }
+        } else {
+            let y = rowCenterY(7)
+            rowsNode.addChild(PanelArt.label("TAP A FRIEND", size: 8, x: Layout.slotX, y: y + 6, align: .left))
+            rowsNode.addChild(PanelArt.label("TO REMOVE", size: 8, x: Layout.slotX, y: y - 6, align: .left))
         }
+
+        // Sends your exact name to someone, so they can add you.
+        let share = PanelButton(name: "friendsShare", text: "SHARE NAME", textSize: 8, width: 100, height: 26, hit: CGSize(width: 100, height: 30))
+        share.position = CGPoint(x: 58, y: rowCenterY(7))
+        rowsNode.addChild(share)
     }
 
     private func showAddedYou(_ entries: [Entry]) {
@@ -316,7 +403,11 @@ class FriendsPanel: SKNode {
     }
 
     private func addOwnRowBand(y: CGFloat) {
-        rowsNode.addChild(SKSpriteNode(color: Layout.ownRowColor, size: CGSize(width: 222, height: 28)).then {
+        addRowBand(Layout.ownRowColor, y: y)
+    }
+
+    private func addRowBand(_ color: UIColor, y: CGFloat) {
+        rowsNode.addChild(SKSpriteNode(color: color, size: CGSize(width: 222, height: 28)).then {
             $0.position = CGPoint(x: 0, y: y)
             $0.zPosition = 0.5
         })

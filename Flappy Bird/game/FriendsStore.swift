@@ -12,6 +12,10 @@
 //  - friends: the record names of the people added. Also in the iCloud
 //    key-value store (CloudSync), so a reinstall keeps the list, and on the
 //    player's public record, so the people added can see who added them.
+//  - friendsMarks: who was removed from that list, and when (the list
+//    itself only grows; see FriendsLogic). In the key-value store too.
+//  - friendsSeenAdded: the people who added this player that this phone
+//    has already shown, for the "new" count on the menu button.
 //  - friendsCache: the last lists fetched, shown at once and when offline.
 //  - friendsLastRound: when the last round ended ("last played").
 //
@@ -45,7 +49,9 @@ protocol FriendsCloud {
     /// server's name (see FriendsLogic.merged) and answers false, writing
     /// nothing, when the record does not exist. Claiming a name writes the
     /// name too and creates the record when missing.
-    func save(_ row: PlayerRow, friends: [String], claimingName: Bool, _ done: @escaping (Result<Bool, FriendsError>) -> Void)
+    /// `removed` are the players taken off the friends list: they are left
+    /// out of the stored list even if the server still has them.
+    func save(_ row: PlayerRow, friends: [String], removed: [String], claimingName: Bool, _ done: @escaping (Result<Bool, FriendsError>) -> Void)
     func delete(id: String, _ done: @escaping (FriendsError?) -> Void)
 }
 
@@ -54,6 +60,8 @@ enum FriendsStore {
 
     /// Shared with CloudSync, which keeps this list in iCloud too.
     static let friendsKey = "friends"
+    /// Shared with CloudSync too: JSON of FriendsLogic.Marks.
+    static let marksKey = "friendsMarks"
     static let everyoneCount = 10
 
     private static let nameKey = "friendsName"
@@ -62,6 +70,7 @@ enum FriendsStore {
     private static let lastRoundKey = "friendsLastRound"
     private static let publishedKey = "friendsPublished"
     private static let askedKey = "friendsNameAsked"
+    private static let seenAddedKey = "friendsSeenAdded"
 
     enum Status {
         case ok, loading, offline, noAccount
@@ -111,8 +120,24 @@ enum FriendsStore {
         set { defaults.set(newValue, forKey: idKey) }
     }
 
+    /// The friends list as the player sees it: everyone added, without
+    /// the ones removed since.
     static var friendIDs: [String] {
+        FriendsLogic.effectiveFriends(rawFriendIDs, marks: marks)
+    }
+
+    /// Everyone ever added; this list only grows.
+    private static var rawFriendIDs: [String] {
         defaults.stringArray(forKey: friendsKey) ?? []
+    }
+
+    static func decodeMarks(_ data: Data?) -> FriendsLogic.Marks {
+        data.flatMap { try? JSONDecoder().decode(FriendsLogic.Marks.self, from: $0) } ?? [:]
+    }
+
+    private static var marks: FriendsLogic.Marks {
+        get { decodeMarks(defaults.data(forKey: marksKey)) }
+        set { defaults.set(try? JSONEncoder().encode(newValue), forKey: marksKey) }
     }
 
     /// This player's row from the phone's own numbers, never stale.
@@ -143,6 +168,38 @@ enum FriendsStore {
         return loadCache().addedMe.filter { !ids.contains($0.id) && $0.id != myID }
     }
 
+    /// Friends who added this player too, from the last fetch.
+    static func mutualIDs() -> Set<String> {
+        FriendsLogic.mutualIDs(friends: friendIDs, addedMe: loadCache().addedMe.map(\.id))
+    }
+
+    // MARK: Who added you, and who is new
+
+    /// Nil until this phone has a baseline: nobody counts as new before.
+    private static var seenAdded: Set<String>? {
+        get { defaults.stringArray(forKey: seenAddedKey).map(Set.init) }
+        set { defaults.set(newValue?.sorted(), forKey: seenAddedKey) }
+    }
+
+    /// How many people waiting on ADDED YOU this phone has not shown yet.
+    static func unseenAddedCount() -> Int {
+        guard let seen = seenAdded else {
+            return 0
+        }
+        return FriendsLogic.unseen(waiting: addedYouRows().map(\.id), seen: seen).count
+    }
+
+    /// The ADDED YOU list was looked at.
+    static func markAddedSeen() {
+        guard let seen = seenAdded else {
+            return
+        }
+        let all = seen.union(loadCache().addedMe.map(\.id))
+        if all != seen {
+            seenAdded = all
+        }
+    }
+
     /// The top of all time, from the last fetch.
     static func everyoneRows() -> [PlayerRow] {
         loadCache().everyone
@@ -168,6 +225,7 @@ enum FriendsStore {
             return
         }
 
+        let hadCache = defaults.data(forKey: cacheKey) != nil
         let cached = loadCache()
         if status == .offline || (cached.friends.isEmpty && cached.everyone.isEmpty) {
             status = .loading
@@ -236,6 +294,14 @@ enum FriendsStore {
                             addedMe: added,
                             everyone: top
                         ))
+                        // The first answer about who added this player sets
+                        // what counts as already seen: the list last shown
+                        // (an update from 5.2), or else everyone waiting now
+                        // (a new phone must not call them all new).
+                        if lookFor != nil, seenAdded == nil {
+                            seenAdded = Set((hadCache ? cached.addedMe : added).map(\.id))
+                        }
+
                         status = signedIn ? .ok : .noAccount
                         GameLog.add("friends refresh ok: \(rows.count) of \(wanted.count) records, added me \(added.count), top \(top.count)")
                         finishRefresh()
@@ -244,6 +310,22 @@ enum FriendsStore {
                 }
             }
         }
+    }
+
+    private static var lastBadgeCheck: Date?
+
+    /// For the count on the menu's Friends button: fetches the lists when
+    /// the player has a name (nothing is asked for anyone who never joined
+    /// the board), at most once in ten minutes. Answers false, without
+    /// calling back later, when it does not fetch.
+    @discardableResult
+    static func refreshForBadge(now: Date = Date(), _ done: @escaping () -> Void) -> Bool {
+        guard myName != nil, now.timeIntervalSince(lastBadgeCheck ?? .distantPast) >= 600 else {
+            return false
+        }
+        lastBadgeCheck = now
+        refresh(done)
+        return true
     }
 
     private static func addedMe(id: String?, _ done: @escaping (Result<[PlayerRow], FriendsError>) -> Void) {
@@ -263,7 +345,7 @@ enum FriendsStore {
 
         if myID != nil {
             forgetProfile()
-            for key in [cacheKey, friendsKey] {
+            for key in [cacheKey, friendsKey, marksKey, seenAddedKey] {
                 defaults.removeObject(forKey: key)
             }
         }
@@ -308,7 +390,7 @@ enum FriendsStore {
 
         isPublishing = true
 
-        cloud.save(row, friends: sending.friends, claimingName: false) { result in
+        cloud.save(row, friends: sending.friends, removed: removedIDs, claimingName: false) { result in
             isPublishing = false
             defer {
                 if publishAgain {
@@ -375,7 +457,7 @@ enum FriendsStore {
                 row.name = name
                 let sending = Published(row: row, friends: friendIDs)
 
-                cloud.save(row, friends: sending.friends, claimingName: true) { result in
+                cloud.save(row, friends: sending.friends, removed: removedIDs, claimingName: true) { result in
                     guard case .success = result else {
                         return finish(failure(result))
                     }
@@ -484,8 +566,41 @@ enum FriendsStore {
         GameLog.add("friends add back")
     }
 
+    /// Takes a friend off the list. They are not told, but the list on
+    /// this player's record no longer names them.
+    static func removeFriend(_ friend: PlayerRow) {
+        guard friendIDs.contains(friend.id) else {
+            return
+        }
+
+        marks = FriendsLogic.remove(friend.id, now: Date().timeIntervalSince1970, marks)
+
+        var cache = loadCache()
+        cache.friends.removeAll { $0.id == friend.id }
+        saveCache(cache)
+
+        // If they added this player, they are back on ADDED YOU: not news.
+        if let seen = seenAdded {
+            seenAdded = seen.union([friend.id])
+        }
+
+        CloudSync.merge()
+        publish()
+        GameLog.add("friends remove")
+    }
+
+    private static var removedIDs: [String] {
+        FriendsLogic.removedIDs(marks).sorted()
+    }
+
     private static func keep(_ friend: PlayerRow) {
-        defaults.set(friendIDs + [friend.id], forKey: friendsKey)
+        if !rawFriendIDs.contains(friend.id) {
+            defaults.set(rawFriendIDs + [friend.id], forKey: friendsKey)
+        }
+        marks = FriendsLogic.readd(friend.id, now: Date().timeIntervalSince1970, marks)
+        if let seen = seenAdded {
+            seenAdded = seen.union([friend.id])
+        }
         var cache = loadCache()
         cache.friends.removeAll { $0.id == friend.id }
         cache.friends.append(friend)

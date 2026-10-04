@@ -478,6 +478,26 @@ final class GameScene: SKScene {
             )
         }
 
+    /// How many new people added you; on the Friends button's corner.
+    private static let friendsBadgeLabel = SKLabelNode(fontNamed: "KongtextRegular").then {
+        $0.name = "friends"
+        $0.fontSize = 8
+        $0.fontColor = .white
+        $0.verticalAlignmentMode = .center
+        $0.zPosition = 1
+    }
+
+    private static let friendsBadge = SKSpriteNode(
+        color: UIColor(red: 228 / 255, green: 60 / 255, blue: 50 / 255, alpha: 1),
+        size: CGSize(width: 18, height: 13)
+    ).then {
+        $0.name = "friends"
+        $0.position = CGPoint(x: 24, y: 14)
+        $0.zPosition = 2
+        $0.isHidden = true
+        $0.addChild(friendsBadgeLabel)
+    }
+
     /// Two birds facing each other.
     private static var friendsButton =
         SKSpriteNode(
@@ -488,6 +508,7 @@ final class GameScene: SKScene {
             button.name = "friends"
             button.setScale(1.2)
             button.addChild(caption("FRIENDS", button: "friends"))
+            button.addChild(friendsBadge)
 
             for (color, x, facing) in [("red", CGFloat(-11), CGFloat(1)), ("yellow", 11, -1)] {
                 button.addChild(
@@ -556,6 +577,7 @@ final class GameScene: SKScene {
         configureWorld()
 
         startIdleAnimation()
+        checkFriendsBadge()
     }
 
     private func configureScene() {
@@ -1216,6 +1238,12 @@ final class GameScene: SKScene {
         case "friendsMe":
             handleFriendsMe()
 
+        case "friendsShare":
+            handleFriendsShare()
+
+        case let name? where name.hasPrefix("friendsRow"):
+            handleFriendsRow(Int(name.dropFirst("friendsRow".count)) ?? 0)
+
         case let name? where name.hasPrefix("friendsAddBack"):
             handleFriendsAddBack(row: Int(name.dropFirst("friendsAddBack".count)) ?? 0)
 
@@ -1278,7 +1306,8 @@ final class GameScene: SKScene {
         case "play", "pause", "settings", "birdPicker", "bestRuns",
              "panelBack", "tabRuns", "tabStats", "tabGoals", "friends",
              "tabFriends", "tabEveryone", "tabAdded",
-             "friendsPrev", "friendsNext", "friendsAdd", "friendsMe", "editName",
+             "friendsPrev", "friendsNext", "friendsAdd", "friendsMe", "friendsShare", "editName",
+             "friendsRow0", "friendsRow1", "friendsRow2", "friendsRow3", "friendsRow4",
              "friendsAddBack0", "friendsAddBack1", "friendsAddBack2", "friendsAddBack3", "friendsAddBack4",
              "toggleSounds", "toggleHaptics", "toggleDarkMode", "toggleLogs":
             // These ignore taps while the button lock is on.
@@ -1502,6 +1531,8 @@ final class GameScene: SKScene {
         // Scores may have changed while the app was away.
         if friendsNode.parent != nil {
             refreshFriends()
+        } else {
+            checkFriendsBadge()
         }
     }
 
@@ -1984,6 +2015,7 @@ final class GameScene: SKScene {
             }
 
             self.friendsNode.reload(keepPage: true)
+            self.updateFriendsBadge()
 
             // First visit with no name yet: ask once.
             if !Self.hitButton, FriendsStore.shouldAskForName() {
@@ -2024,6 +2056,36 @@ final class GameScene: SKScene {
         friendsNode.removeFromParent()
 
         restoreMenu()
+        updateFriendsBadge()
+    }
+
+    /// The count on the menu's Friends button: people who added you that
+    /// this phone has not shown yet.
+    private func updateFriendsBadge() {
+        let count = FriendsStore.unseenAddedCount()
+        Self.friendsBadge.isHidden = count == 0
+        Self.friendsBadgeLabel.text = count > 9 ? "9+" : "\(count)"
+    }
+
+    /// Looks for new people at launch and on coming back to the game, so
+    /// the count is there without opening the panel.
+    private func checkFriendsBadge() {
+        updateFriendsBadge()
+
+        // The self-tests and screenshot runs drive the server themselves.
+        let arguments = ProcessInfo.processInfo.arguments
+        guard !arguments.contains("-friendsSelfTest"), !arguments.contains("-friendsShot") else {
+            return
+        }
+
+        FriendsStore.refreshForBadge { [weak self] in
+            guard let self else { return }
+
+            self.updateFriendsBadge()
+            if self.friendsNode.parent != nil {
+                self.friendsNode.reload(keepPage: true)
+            }
+        }
     }
 
     private func handleFriendsAdd() {
@@ -2040,14 +2102,66 @@ final class GameScene: SKScene {
             return
         }
 
-        playSound(swooshSound)
+        // Locked for a moment: the rows move up, and a second tap would
+        // add whoever lands under the thumb.
+        Self.hitButton = true
 
         if haptics {
             impactFeedback.impactOccurred()
         }
 
-        FriendsStore.addBack(friendsNode.addBackRows[row])
-        friendsNode.reload(keepPage: true)
+        let player = friendsNode.addBackRows[row]
+        FriendsStore.addBack(player)
+        playSound(pointSound)
+        friendsNode.show(message: "ADDED \(player.name)")
+        updateFriendsBadge()
+        unlockButtons()
+    }
+
+    /// A friend's row on FRIENDS: asks, then takes them off the list.
+    private func handleFriendsRow(_ row: Int) {
+        guard friendsNode.friendRowsOnPage.indices.contains(row),
+              let friend = friendsNode.friendRowsOnPage[row],
+              takePromptTap() else {
+            return
+        }
+
+        present(NamePrompt.confirm(
+            title: "Remove \(friend.name)?",
+            message: "They are not told. You can add them again by name.",
+            action: "Remove"
+        ) { [weak self] confirmed in
+            guard let self else { return }
+
+            if confirmed {
+                FriendsStore.removeFriend(friend)
+            }
+
+            self.endPrompt()
+
+            if confirmed {
+                self.friendsNode.show(message: "REMOVED \(friend.name)")
+            }
+        })
+    }
+
+    /// SHARE NAME: the system share sheet with the player's exact name, so
+    /// a friend can add them. Without a name yet, it asks for one first.
+    private func handleFriendsShare() {
+        guard let name = FriendsStore.myName else {
+            return handleFriendsMe()
+        }
+
+        guard takePromptTap() else {
+            return
+        }
+
+        let sheet = UIActivityViewController(activityItems: [FriendsLogic.shareText(name: name)], applicationActivities: nil)
+        sheet.popoverPresentationController?.sourceView = view
+        sheet.completionWithItemsHandler = { [weak self] _, _, _, _ in
+            self?.endPrompt()
+        }
+        present(sheet)
     }
 
     /// Your own row, tappable while it has no name on it.
@@ -2113,7 +2227,7 @@ final class GameScene: SKScene {
     /// open and no other alert is up; otherwise the prompt is dropped, the
     /// buttons are released and the answer is false.
     @discardableResult
-    private func present(_ alert: UIAlertController) -> Bool {
+    private func present(_ alert: UIViewController) -> Bool {
         guard friendsNode.parent != nil || settingsNode.parent != nil,
               let presenter = promptPresenter,
               presenter.presentedViewController == nil else {
@@ -2267,6 +2381,11 @@ final class GameScene: SKScene {
                 switch result {
                 case .added:
                     self.endPrompt()
+                    self.playSound(self.pointSound)
+                    self.friendsNode.show(
+                        message: "ADDED \(name)",
+                        jumpTo: FriendsStore.friendRows().first { $0.name == name }?.id
+                    )
                 case .invalid:
                     self.askForFriend(message: "Use 3 to 10 letters or numbers.", text: name)
                 case .notFound:

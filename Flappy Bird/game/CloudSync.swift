@@ -13,6 +13,8 @@
 //    pipes then best (two phones playing on the same day under-count;
 //    accepted).
 //  - achievements, friends (the people added on the friends board): union.
+//  - friendsMarks (who was removed from the friends list, and when): per
+//    player the later time wins (FriendsLogic.mergeMarks).
 //
 import Foundation
 
@@ -89,6 +91,15 @@ enum CloudSync {
             let union = local.union(cloud)
             if union != local { defaults.set(union.sorted(), forKey: key); localChanged = true }
             if union != cloud { store.set(union.sorted(), forKey: key); cloudChanged = true }
+        }
+
+        // Removed friends
+        let localMarks = FriendsStore.decodeMarks(defaults.data(forKey: FriendsStore.marksKey))
+        let cloudMarks = FriendsStore.decodeMarks(store.data(forKey: FriendsStore.marksKey))
+        let marks = FriendsLogic.mergeMarks(localMarks, cloudMarks)
+        if !marks.isEmpty, let data = try? JSONEncoder().encode(marks) {
+            if marks != localMarks { defaults.set(data, forKey: FriendsStore.marksKey); localChanged = true }
+            if marks != cloudMarks { store.set(data, forKey: FriendsStore.marksKey); cloudChanged = true }
         }
 
         if cloudChanged {

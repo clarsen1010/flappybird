@@ -105,7 +105,7 @@ struct CloudKitFriends: FriendsCloud {
         }
     }
 
-    func save(_ row: PlayerRow, friends: [String], claimingName: Bool, _ done: @escaping (Result<Bool, FriendsError>) -> Void) {
+    func save(_ row: PlayerRow, friends: [String], removed: [String], claimingName: Bool, _ done: @escaping (Result<Bool, FriendsError>) -> Void) {
         run(done) {
             try await Self.database { database in
                 let recordID = CKRecord.ID(recordName: row.id)
@@ -116,12 +116,14 @@ struct CloudKitFriends: FriendsCloud {
                 do {
                     record = try await database.record(for: recordID)
 
-                    // Friends are never removed, so the list only grows: a
-                    // phone whose own list has not arrived yet (a reinstall)
-                    // must not empty the one on the server.
-                    for id in record["friends"] as? [String] ?? [] where !allFriends.contains(id) {
-                        allFriends.append(id)
-                    }
+                    // The server's list is kept too: a phone whose own list
+                    // has not arrived yet (a reinstall) must not empty it.
+                    // Only the players removed on purpose are left out.
+                    allFriends = FriendsLogic.serverFriends(
+                        local: friends,
+                        server: record["friends"] as? [String] ?? [],
+                        removed: Set(removed)
+                    )
 
                     if let server = Self.row(record) {
                         values = FriendsLogic.merged(server: server, local: row)
