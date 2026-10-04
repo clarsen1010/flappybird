@@ -119,6 +119,87 @@ enum FriendsLogic {
         if seconds < 86400 {
             return "\(seconds / 3600)H AGO"
         }
-        return "\(seconds / 86400)D AGO"
+        // Capped so the text never grows past seven characters.
+        return seconds / 86400 > 99 ? "99D+" : "\(seconds / 86400)D AGO"
+    }
+
+    // MARK: Removing a friend
+
+    // The friends list itself only ever grows: 5.2 and iCloud merge it as a
+    // union. Removal is kept beside it as one time per player: positive
+    // means removed then, negative means added again then. The later time
+    // wins when two of the player's phones disagree.
+    typealias Marks = [String: Double]
+
+    static func removedIDs(_ marks: Marks) -> Set<String> {
+        Set(marks.filter { $0.value > 0 }.keys)
+    }
+
+    /// The friends list as the player sees it.
+    static func effectiveFriends(_ friends: [String], marks: Marks) -> [String] {
+        let removed = removedIDs(marks)
+        return friends.filter { !removed.contains($0) }
+    }
+
+    /// Later than any time already stored for this player, even if the
+    /// clock was set back.
+    private static func stamp(_ id: String, now: Double, _ marks: Marks) -> Double {
+        max(now, abs(marks[id] ?? 0) + 1)
+    }
+
+    static func remove(_ id: String, now: Double, _ marks: Marks) -> Marks {
+        var marks = marks
+        marks[id] = stamp(id, now: now, marks)
+        return marks
+    }
+
+    /// Adding someone again cancels their removal. Someone never removed
+    /// gets no entry.
+    static func readd(_ id: String, now: Double, _ marks: Marks) -> Marks {
+        guard marks[id] != nil else {
+            return marks
+        }
+        var marks = marks
+        marks[id] = -stamp(id, now: now, marks)
+        return marks
+    }
+
+    /// Per player the later time wins; at the same time, removal does.
+    static func mergeMarks(_ a: Marks, _ b: Marks) -> Marks {
+        a.merging(b) { one, two in
+            abs(one) != abs(two) ? (abs(one) > abs(two) ? one : two) : max(one, two)
+        }
+    }
+
+    /// The friends list to store on the player's record: this phone's
+    /// list, then whatever else the server has (a reinstalled phone whose
+    /// own list has not arrived must not empty it), without the removed.
+    static func serverFriends(local: [String], server: [String], removed: Set<String>) -> [String] {
+        var all = local.filter { !removed.contains($0) }
+        for id in server where !all.contains(id) && !removed.contains(id) {
+            all.append(id)
+        }
+        return all
+    }
+
+    // MARK: Who added you
+
+    /// Friends who added this player too.
+    static func mutualIDs(friends: [String], addedMe: [String]) -> Set<String> {
+        Set(friends).intersection(addedMe)
+    }
+
+    /// The players waiting on ADDED YOU that this phone has not shown yet.
+    static func unseen(waiting: [String], seen: Set<String>) -> [String] {
+        waiting.filter { !seen.contains($0) }
+    }
+
+    /// The page a player is on in a list shown `perPage` at a time.
+    static func pageIndex(of id: String, in ids: [String], perPage: Int) -> Int? {
+        ids.firstIndex(of: id).map { $0 / perPage }
+    }
+
+    static func shareText(name: String) -> String {
+        "Add me on Blappy Fird! My player name is \(name)"
     }
 }
