@@ -150,7 +150,7 @@ final class GameScene: SKScene {
             switch self {
             case .day: return GameScene.daySkyTop
             case .night: return GameScene.nightSkyTop
-            case .hard: return UIColor(red: 53 / 255, green: 20 / 255, blue: 12 / 255, alpha: 1)
+            case .hard: return UIColor(red: 40 / 255, green: 47 / 255, blue: 62 / 255, alpha: 1)
             case .insane: return UIColor(red: 24 / 255, green: 3 / 255, blue: 8 / 255, alpha: 1)
             case .impossible: return UIColor(red: 6 / 255, green: 5 / 255, blue: 10 / 255, alpha: 1)
             }
@@ -160,7 +160,7 @@ final class GameScene: SKScene {
         var flash: UIColor {
             switch self {
             case .day, .night: return .white
-            case .hard: return UIColor(red: 0.85, green: 0.25, blue: 0.10, alpha: 1)
+            case .hard: return UIColor(red: 0.16, green: 0.19, blue: 0.26, alpha: 1)
             case .insane: return UIColor(red: 0.70, green: 0.02, blue: 0.05, alpha: 1)
             case .impossible: return .black
             }
@@ -675,6 +675,7 @@ final class GameScene: SKScene {
 
         startIdleAnimation()
         checkFriendsBadge()
+        startLightning()
     }
 
     private func configureScene() {
@@ -2899,6 +2900,40 @@ final class GameScene: SKScene {
                 applyPipeLook(to: pipe)
             }
         }
+    }
+
+    // MARK: Lightning
+
+    /// Behind the pipes and the ground, in front of the sky: only the sky
+    /// lights up.
+    private lazy var lightningNode = SKSpriteNode(color: .white, size: CGSize(width: width, height: height)).then {
+        $0.position = CGPoint(x: width / 2, y: height / 2)
+        $0.zPosition = GameZPosition.sky + 0.5
+        $0.alpha = 0
+    }
+
+    /// HARD is a storm: every so often the sky flickers. Runs for as long
+    /// as the scene does and does nothing in the other looks.
+    private func startLightning() {
+        addChild(lightningNode)
+
+        let strike = SKAction.run { [weak self] in
+            guard let self, self.lookShown == .hard else {
+                return
+            }
+
+            self.lightningNode.run(.sequence([
+                .fadeAlpha(to: 0.45, duration: 0.04),
+                .fadeAlpha(to: 0.05, duration: 0.08),
+                .fadeAlpha(to: 0.30, duration: 0.04),
+                .fadeAlpha(to: 0, duration: 0.3)
+            ]))
+        }
+
+        run(.repeatForever(.sequence([
+            .wait(forDuration: 9, withRange: 8),
+            strike
+        ])))
     }
 
     /// A pipe in the look showing.
