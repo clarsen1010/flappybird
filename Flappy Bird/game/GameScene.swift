@@ -150,7 +150,7 @@ final class GameScene: SKScene {
             switch self {
             case .day: return GameScene.daySkyTop
             case .night: return GameScene.nightSkyTop
-            case .hard: return UIColor(red: 32 / 255, green: 37 / 255, blue: 49 / 255, alpha: 1)
+            case .hard: return UIColor(red: 45 / 255, green: 53 / 255, blue: 68 / 255, alpha: 1)
             case .insane: return UIColor(red: 24 / 255, green: 3 / 255, blue: 8 / 255, alpha: 1)
             case .impossible: return UIColor(red: 6 / 255, green: 5 / 255, blue: 10 / 255, alpha: 1)
             }
@@ -231,6 +231,8 @@ final class GameScene: SKScene {
     private var pipePlanner = PipePlanner(tuning: GameMode.normal.tuning)
     private var pipesSpawned = 0
     private var hasExtraLife = false
+    /// The headstones of this round, by the pipe they stand before.
+    private var graveMarkers: [Int: GraveMarker] = [:]
 
     /// Sets the world's speed: the scenery and pipes (everything under
     /// `moving`) and the pipe spawner together, so the pipes stay the same
@@ -1516,6 +1518,13 @@ final class GameScene: SKScene {
         roundMode = GameMode.current
         pipePlanner = PipePlanner(tuning: roundMode.tuning)
         pipesSpawned = 0
+        // In the hard modes, headstones along the ground: where friends'
+        // bests and this player's own rounds ended.
+        graveMarkers = roundMode == .normal ? [:] : GraveMarker.all(
+            friends: FriendsStore.friendRows().map { ($0.name, $0.best(roundMode)) },
+            myBest: ResultBoard.best(mode: roundMode),
+            deaths: Deaths.load(mode: roundMode)
+        )
         hasExtraLife = false
         heartNode.removeFromParent()
 
@@ -3163,6 +3172,49 @@ final class GameScene: SKScene {
         }
 
         pipes.addChild(pipeGroup)
+
+        if let marker = graveMarkers[pipesSpawned] {
+            addGraveMarker(marker, distance: distance)
+        }
+    }
+
+    /// A headstone on the ground a little before the pipe just spawned,
+    /// travelling with it (but not sliding with it).
+    private func addGraveMarker(_ marker: GraveMarker, distance: CGFloat) {
+        let node = SKNode()
+        node.position = CGPoint(
+            x: width + pipeTextureUp.width * 2 - 75,
+            y: groundTexture.height * 2 - Constants.groundDrop
+        )
+        // Behind the pipes, in front of the sky.
+        node.zPosition = GameZPosition.sky + 0.75
+
+        let stone = SKSpriteNode(texture: Assets.shared.sprites.textureNamed("grave-stone").then { $0.filteringMode = .nearest })
+        stone.anchorPoint = CGPoint(x: 0.5, y: 0)
+        stone.setScale(Constants.birdScale)
+        node.addChild(stone)
+
+        for (index, line) in marker.lines.reversed().enumerated() {
+            let y = stone.size.height + 8 + CGFloat(index) * 12
+
+            for (z, (color, offset)) in [(PanelButton.textColor, CGPoint(x: 0, y: -1)), (UIColor.white, .zero)].enumerated() {
+                node.addChild(SKLabelNode(fontNamed: "KongtextRegular").then {
+                    $0.text = line
+                    $0.fontSize = 9
+                    $0.fontColor = color
+                    $0.verticalAlignmentMode = .center
+                    $0.position = CGPoint(x: offset.x, y: y + offset.y)
+                    $0.zPosition = CGFloat(z + 1) * 0.01
+                })
+            }
+        }
+
+        node.run(.sequence([
+            .moveBy(x: -distance, y: 0, duration: Constants.pipeMoveSpeed * distance),
+            .removeFromParent()
+        ]))
+
+        pipes.addChild(node)
     }
 
     private func makePipe(
@@ -3349,6 +3401,8 @@ final class GameScene: SKScene {
         BestRuns.record(score, mode: roundMode)
         if roundMode == .normal {
             GameStats.record(score: score)
+        } else {
+            Deaths.record(score: score, mode: roundMode)
         }
         Achievements.record(score: score, mode: roundMode)
 

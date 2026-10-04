@@ -206,3 +206,66 @@ struct PipePlanner {
         return PipePlan(y: y, gap: gap, slide: slide, startsHigh: slide > 0 && random(0...1) == 1)
     }
 }
+
+/// Where this player's hard-mode rounds ended: for each mode, how many
+/// times at each score. Kept on the phone; the headstones along the ground
+/// come from it.
+enum Deaths {
+    static func key(mode: GameMode) -> String {
+        "deaths" + mode.suffix
+    }
+
+    static func load(mode: GameMode) -> [Int: Int] {
+        guard let data = UserDefaults.standard.data(forKey: key(mode: mode)),
+              let counts = try? JSONDecoder().decode([Int: Int].self, from: data) else {
+            return [:]
+        }
+        return counts
+    }
+
+    static func record(score: Int, mode: GameMode) {
+        var counts = load(mode: mode)
+        counts[score, default: 0] += 1
+        if let data = try? JSONEncoder().encode(counts) {
+            UserDefaults.standard.set(data, forKey: key(mode: mode))
+        }
+    }
+}
+
+/// A headstone by the ground in a hard-mode round: who got exactly this
+/// far, and how often this player's own rounds ended here.
+struct GraveMarker: Equatable {
+    /// At most three lines to write over the stone.
+    var lines: [String]
+
+    /// The markers of a round, by the pipe they stand before: a best (or a
+    /// death) at score n happened at pipe n + 1. `friends` are names and
+    /// bests in the mode; a best of 0 is no score and gets no stone.
+    static func all(friends: [(name: String, best: Int)], myBest: Int, deaths: [Int: Int]) -> [Int: GraveMarker] {
+        var names: [Int: [String]] = [:]
+
+        if myBest > 0 {
+            names[myBest, default: []].append("YOU")
+        }
+        for friend in friends.sorted(by: { $0.name < $1.name }) where friend.best > 0 {
+            names[friend.best, default: []].append(friend.name)
+        }
+
+        var markers: [Int: GraveMarker] = [:]
+
+        for score in Set(names.keys).union(deaths.keys) {
+            let here = names[score] ?? []
+            var lines = Array(here.prefix(2))
+            if here.count > 2 {
+                lines.append("+\(here.count - 2)")
+            }
+            // A stone with nobody's best on it: this player's own ends.
+            if lines.isEmpty, let count = deaths[score], count > 1 {
+                lines = ["x\(count)"]
+            }
+            markers[score + 1] = GraveMarker(lines: lines)
+        }
+
+        return markers
+    }
+}
