@@ -2921,13 +2921,13 @@ final class GameScene: SKScene {
         $0.alpha = 0
     }
 
-    /// HARD is a storm: every so often the sky flickers. Runs for as long
-    /// as the scene does and does nothing in the other looks.
+    /// The hard modes are stormy: every so often the sky flickers. Runs
+    /// for as long as the scene does and does nothing in the normal game.
     private func startLightning() {
         addChild(lightningNode)
 
         let strike = SKAction.run { [weak self] in
-            guard let self, self.lookShown == .hard else {
+            guard let self, self.lookShown != .day, self.lookShown != .night else {
                 return
             }
 
