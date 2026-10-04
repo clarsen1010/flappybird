@@ -3505,7 +3505,9 @@ final class GameScene: SKScene {
 
         defaults.set(version, forKey: "ratingAskedVersion")
 
-        // Once the card has counted up and the buttons are in.
+        // Once the card has counted up and the buttons are in. Keyed so the
+        // next round (resetScene) cancels it: it must not come up over a
+        // later Game Over.
         run(.sequence([
             .wait(forDuration: 2.5),
             .run { [weak self] in
@@ -3518,7 +3520,7 @@ final class GameScene: SKScene {
                     AppStore.requestReview(in: windowScene)
                 }
             }
-        ]))
+        ]), withKey: "ratingAsk")
     }
 
     // MARK: Reset
@@ -3538,6 +3540,8 @@ final class GameScene: SKScene {
         gameOverNode.removeFromParent()
         graveNode.removeFromParent()
         clearMilestoneTint()
+        // A rating prompt still waiting belongs to the round just left.
+        removeAction(forKey: "ratingAsk")
 
         refreshTheme()
 
