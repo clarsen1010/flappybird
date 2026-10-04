@@ -2928,8 +2928,9 @@ final class GameScene: SKScene {
     // MARK: Lightning
 
     /// Behind the pipes and the ground, in front of the sky: only the sky
-    /// lights up.
-    private lazy var lightningNode = SKSpriteNode(color: .white, size: CGSize(width: width, height: height)).then {
+    /// lights up. Padded past the death shake (8 units), like flashScreen,
+    /// so a shake during a strike shows no unlit edge.
+    private lazy var lightningNode = SKSpriteNode(color: .white, size: CGSize(width: width + 30, height: height + 30)).then {
         $0.position = CGPoint(x: width / 2, y: height / 2)
         $0.zPosition = GameZPosition.sky + 0.5
         $0.alpha = 0
