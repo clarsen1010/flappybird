@@ -175,7 +175,6 @@ class BestRunsPanel: SKNode {
 
         addChild(backgroundNode)
         addChild(closeButton)
-        addChild(modeButton)
         addChild(titleNode)
         addChild(rowsNode)
 
@@ -361,10 +360,14 @@ class BestRunsPanel: SKNode {
         backgroundNode.position.y = (PanelArt.height(rows: Layout.rowCount) - PanelArt.height(rows: rows)) / 2
         PanelArt.background(rows: rows).forEach(backgroundNode.addChild)
         closeButton.position.y = PanelArt.closeButtonY(rows: rows, reference: Layout.rowCount)
-        modeButton.position.y = closeButton.position.y
-        modeButton.isHidden = page != .runs
-        modeButton.isEnabled = page == .runs
-        modeButton.text = viewMode.title
+        // Only on the runs page; off it, not in the panel at all, so a tap
+        // where it was counts as outside the panel.
+        modeButton.removeFromParent()
+        if page == .runs {
+            modeButton.position.y = closeButton.position.y
+            modeButton.text = viewMode.title
+            addChild(modeButton)
+        }
     }
 
     private func makeLabel(_ text: String, size: CGFloat, x: CGFloat, y: CGFloat) -> SKNode {
@@ -403,8 +406,9 @@ enum PanelArt {
     /// The box under a panel that says whose scores are showing; a tap
     /// turns it to the next mode. Wide enough for IMPOSSIBLE.
     static func modeBox(name: String) -> PanelButton {
-        PanelButton(name: name, text: GameMode.normal.title, textSize: 8, width: 96, height: 30, hit: CGSize(width: 100, height: 44)).then {
-            $0.position.x = -84
+        PanelButton(name: name, text: GameMode.normal.title, textSize: 8, width: 96, height: 30, hit: CGSize(width: 96, height: 44)).then {
+            // Clear of BACK's own touch box (36 either side of the middle).
+            $0.position.x = -86
         }
     }
 

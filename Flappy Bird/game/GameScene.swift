@@ -3711,7 +3711,7 @@ final class GameScene: SKScene {
     /// frame rate it is a few units (the pipe moves 1.7 a frame at 120 Hz,
     /// the bird up to about 8). A large "air" together with a long frame
     /// means the hit happened in a jump he never saw.
-    private func logPipeDeath(_ contact: SKPhysicsContact) {
+    private func logPipeDeath(_ contact: SKPhysicsContact, revived: Bool) {
         guard GameLog.enabled else {
             return
         }
@@ -3739,7 +3739,7 @@ final class GameScene: SKScene {
         let lip = pipe.name == "pipeUp" ? centre.y + halfHeight : centre.y - halfHeight
 
         GameLog.add(String(
-            format: "death PIPE (%@) score=%d | last drawn: bird=(%.1f,%.1f) vy=%.0f pipe x=%.1f..%.1f lip y=%.1f air=%.1f | since then: pipe moved %.1f, %d frame(s) not drawn | this frame %.0fms real (%.0fms scheduled), before=%.0fms, since tap=%.0fms",
+            format: (revived ? "hit PIPE, life used" : "death PIPE") + " (%@) score=%d | last drawn: bird=(%.1f,%.1f) vy=%.0f pipe x=%.1f..%.1f lip y=%.1f air=%.1f | since then: pipe moved %.1f, %d frame(s) not drawn | this frame %.0fms real (%.0fms scheduled), before=%.0fms, since tap=%.0fms",
             pipe.name == "pipeUp" ? "bottom" : "top",
             score, drawnBirdPosition.x, drawnBirdPosition.y, drawnBirdVelocityY,
             drawnCentreX - halfWidth, drawnCentreX + halfWidth, lip,
@@ -3901,7 +3901,7 @@ extension GameScene: SKPhysicsContactDelegate {
                 with: PhysicsCategory.pipe
             ) {
             // Logged either way, so a hit that cost a life can be checked too.
-            logPipeDeath(contact)
+            logPipeDeath(contact, revived: hasExtraLife)
             if tryRevive(contact) {
                 return
             }

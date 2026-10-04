@@ -78,6 +78,9 @@ enum FriendsStore {
     private static let cacheKey = "friendsCache"
     private static let lastRoundKey = "friendsLastRound"
     private static let lastNormalRoundKey = "friendsLastNormalRound"
+    /// Set once the date from before the hard modes has been taken over
+    /// as the last normal round's (or there was none to take).
+    private static let normalRoundSortedKey = "friendsNormalRoundSorted"
     private static let publishedKey = "friendsPublished"
     private static let askedKey = "friendsNameAsked"
     private static let seenAddedKey = "friendsSeenAdded"
@@ -175,8 +178,10 @@ enum FriendsStore {
     static func myRow() -> PlayerRow {
         let lastRound = defaults.object(forKey: lastRoundKey) as? Date
         // The day whose score is published: the last NORMAL round's. A
-        // phone updated from 5.2 has only the one date, from normal rounds.
-        let lastNormalRound = defaults.object(forKey: lastNormalRoundKey) as? Date ?? lastRound
+        // phone updated from 5.2 has only the one date, from normal rounds,
+        // until its first round on 5.3 sorts that out.
+        let fromBefore = defaults.bool(forKey: normalRoundSortedKey) ? nil : lastRound
+        let lastNormalRound = defaults.object(forKey: lastNormalRoundKey) as? Date ?? fromBefore
         let dayKey = lastNormalRound.map(GameStats.dayFormatter.string(from:)) ?? ""
 
         let days = GameStats.loadDays().mapValues(\.best)
@@ -511,12 +516,18 @@ enum FriendsStore {
     static func roundEnded(mode: GameMode) {
         let now = Date()
 
+        // Once, on the first round with hard modes in the game: the date
+        // kept so far (if any) was a normal round's. After this a hard
+        // round's date can never pass for one.
+        if !defaults.bool(forKey: normalRoundSortedKey) {
+            if defaults.object(forKey: lastNormalRoundKey) == nil, let before = defaults.object(forKey: lastRoundKey) {
+                defaults.set(before, forKey: lastNormalRoundKey)
+            }
+            defaults.set(true, forKey: normalRoundSortedKey)
+        }
+
         if mode == .normal {
             defaults.set(now, forKey: lastNormalRoundKey)
-        } else if defaults.object(forKey: lastNormalRoundKey) == nil, let before = defaults.object(forKey: lastRoundKey) {
-            // Updated from 5.2 and the first round is a hard one: the date
-            // so far was the last normal round's. Keep it as that.
-            defaults.set(before, forKey: lastNormalRoundKey)
         }
 
         defaults.set(now, forKey: lastRoundKey)

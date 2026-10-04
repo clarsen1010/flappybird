@@ -444,7 +444,11 @@ class FriendsPanel: SKNode {
 
             rowsNode.addChild(PanelArt.label("+", size: 10, x: Layout.rankX, y: y))
             rowsNode.addChild(PanelArt.label(entry.row.name, size: 10, x: Layout.nameX, y: y, align: .left))
-            rowsNode.addChild(PanelArt.score("\(entry.row.best(viewMode))", x: Layout.bestX, y: y))
+            if viewMode != .normal, entry.row.best(viewMode) == 0 {
+                rowsNode.addChild(PanelArt.label("-", size: 10, x: Layout.bestX, y: y))
+            } else {
+                rowsNode.addChild(PanelArt.score("\(entry.row.best(viewMode))", x: Layout.bestX, y: y))
+            }
             rowsNode.addChild(touchBox("friendsAddBack\(index)", at: CGPoint(x: 0, y: y), size: CGSize(width: 226, height: 30)))
             addBackRows.append(entry.row)
         }
