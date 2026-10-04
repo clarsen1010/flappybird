@@ -150,7 +150,7 @@ final class GameScene: SKScene {
             switch self {
             case .day: return GameScene.daySkyTop
             case .night: return GameScene.nightSkyTop
-            case .hard: return UIColor(red: 40 / 255, green: 47 / 255, blue: 62 / 255, alpha: 1)
+            case .hard: return UIColor(red: 32 / 255, green: 37 / 255, blue: 49 / 255, alpha: 1)
             case .insane: return UIColor(red: 24 / 255, green: 3 / 255, blue: 8 / 255, alpha: 1)
             case .impossible: return UIColor(red: 6 / 255, green: 5 / 255, blue: 10 / 255, alpha: 1)
             }
