@@ -539,6 +539,15 @@ enum FriendsStore {
         }
 
         defaults.set(now, forKey: lastRoundKey)
+
+        // "No iCloud" may be stale: the check at launch can catch iCloud
+        // not ready yet, and publish() would then skip every round until the
+        // next refresh. A refresh looks again and publishes when it can.
+        if status == .noAccount, myName != nil {
+            refresh {}
+            return
+        }
+
         publish()
     }
 
