@@ -3503,8 +3503,6 @@ final class GameScene: SKScene {
             return
         }
 
-        defaults.set(version, forKey: "ratingAskedVersion")
-
         // Once the card has counted up and the buttons are in. Keyed so the
         // next round (resetScene) cancels it: it must not come up over a
         // later Game Over.
@@ -3517,6 +3515,9 @@ final class GameScene: SKScene {
                 }
 
                 if #available(iOS 16.0, *) {
+                    // Marked only now: a wait cut short by the next round,
+                    // or a panel open, leaves the ask for a later best.
+                    defaults.set(version, forKey: "ratingAskedVersion")
                     AppStore.requestReview(in: windowScene)
                 }
             }
