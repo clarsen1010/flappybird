@@ -58,11 +58,15 @@ class SettingsPanel: SKNode {
     /// The player's leaderboard name, boxed so it reads as something to tap.
     let nameButton = PanelButton(name: "editName", text: "", textSize: 8, width: 104, height: 26, hit: CGSize(width: 104, height: 30))
 
+    /// The game's mode; a tap turns it to the next one, like the mode
+    /// button by Play.
+    let modeButton = PanelButton(name: "settingsMode", text: "", textSize: 8, width: 104, height: 26, hit: CGSize(width: 104, height: 30))
+
     /// The play-log switch is for testers: `showsLogs` is false for App
     /// Store players, and the row is left out.
     init(showsLogs: Bool) {
         switches = Switch.allCases.filter { $0 != .logs || showsLogs }
-        rowCount = switches.count + 2 // title, NAME, the switches
+        rowCount = switches.count + 3 // title, NAME, MODE, the switches
 
         super.init()
 
@@ -81,8 +85,13 @@ class SettingsPanel: SKNode {
         // The rest of the NAME row, under the button's own touch box.
         addChild(touchBox("editName", y: rowY(1), z: 2.5))
 
+        addChild(PanelArt.label("MODE", size: 10, x: Layout.labelX, y: rowY(2), align: .left))
+        modeButton.position = CGPoint(x: Layout.nameX, y: rowY(2))
+        addChild(modeButton)
+        addChild(touchBox("settingsMode", y: rowY(2), z: 2.5))
+
         for (index, item) in switches.enumerated() {
-            let y = rowY(index + 2)
+            let y = rowY(index + 3)
 
             addChild(PanelArt.label(item.title, size: 10, x: Layout.labelX, y: y, align: .left))
             addChild(SKSpriteNode(texture: SKTexture(imageNamed: "setting-toggle-background").then { $0.filteringMode = .nearest }).then {

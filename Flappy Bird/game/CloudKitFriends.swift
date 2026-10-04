@@ -20,7 +20,7 @@ struct CloudKitFriends: FriendsCloud {
     static let containerID = "iCloud.com.clarsen1010.flappybird"
 
     private static let recordType = "Player"
-    private static let fields = ["name", "best", "dayBest", "dayKey", "lastPlayed"]
+    private static let fields = ["name", "best", "dayBest", "dayKey", "lastPlayed", "bestHard", "bestInsane", "bestImpossible"]
     /// CloudKit takes at most 400 records in one request.
     private static let fetchLimit = 300
     private static let addedMeLimit = 100
@@ -97,20 +97,21 @@ struct CloudKitFriends: FriendsCloud {
         }
     }
 
-    func board(_ scope: BoardScope, key: String, limit: Int, _ done: @escaping (Result<[PlayerRow], FriendsError>) -> Void) {
+    func board(_ scope: BoardScope, mode: GameMode, key: String, limit: Int, _ done: @escaping (Result<[PlayerRow], FriendsError>) -> Void) {
         // The field that says which day, week or month a record's score
-        // belongs to, and the score. All time has no period.
+        // belongs to, and the score. All time has no period, and a hard
+        // mode's one board is all time.
         let keyField: String?, valueField: String
 
-        switch scope {
+        switch mode == .normal ? scope : .all {
         case .today: (keyField, valueField) = ("dayKey", "dayBest")
         case .week: (keyField, valueField) = ("weekKey", "weekBest")
         case .month: (keyField, valueField) = ("monthKey", "monthBest")
-        case .all: (keyField, valueField) = (nil, "best")
+        case .all: (keyField, valueField) = (nil, mode.serverField)
         }
 
         run(done) {
-            let predicate = keyField.map { NSPredicate(format: "%K == %@", $0, key) } ?? NSPredicate(format: "best > 0")
+            let predicate = keyField.map { NSPredicate(format: "%K == %@", $0, key) } ?? NSPredicate(format: "%K > 0", valueField)
             let query = CKQuery(recordType: Self.recordType, predicate: predicate)
             query.sortDescriptors = [NSSortDescriptor(key: valueField, ascending: false)]
             // Only this board's own fields are asked for.
@@ -164,6 +165,10 @@ struct CloudKitFriends: FriendsCloud {
                 if let monthKey = values.monthKey {
                     record["monthKey"] = monthKey
                     record["monthBest"] = values.monthBest ?? 0
+                }
+                // Only the hard modes this player has a score in.
+                for mode in [GameMode.hard, .insane, .impossible] where values.best(mode) > 0 {
+                    record[mode.serverField] = values.best(mode)
                 }
                 // CloudKit has no empty lists; none means no field.
                 record["friends"] = allFriends.isEmpty ? nil : allFriends
@@ -255,7 +260,10 @@ struct CloudKitFriends: FriendsCloud {
             weekKey: record["weekKey"] as? String,
             weekBest: record["weekBest"] as? Int,
             monthKey: record["monthKey"] as? String,
-            monthBest: record["monthBest"] as? Int
+            monthBest: record["monthBest"] as? Int,
+            bestHard: record["bestHard"] as? Int,
+            bestInsane: record["bestInsane"] as? Int,
+            bestImpossible: record["bestImpossible"] as? Int
         )
     }
 

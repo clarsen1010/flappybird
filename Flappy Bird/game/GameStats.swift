@@ -120,10 +120,14 @@ enum GameStats {
 struct Achievement {
     let id: String
     let title: String
-    /// Earned by one round with at least this score.
+    /// Earned by one round with at least this score...
     let score: Int
+    /// ...played in this mode.
+    var mode = GameMode.normal
 
-    var detail: String { "SCORE \(score)" }
+    var detail: String {
+        mode == .normal ? "SCORE \(score)" : "\(mode.title) \(score)"
+    }
 }
 
 enum Achievements {
@@ -150,6 +154,18 @@ enum Achievements {
         Achievement(id: "score1000", title: "BIRD GOD", score: 1000),
     ]
 
+    /// One round in a hard mode with at least this score. Ids are by rank
+    /// within the mode, so a score can be retuned without losing who
+    /// earned what.
+    static let hard = [
+        Achievement(id: "hard1", title: "SPICY", score: 10, mode: .hard),
+        Achievement(id: "hard2", title: "EXTRA SPICY", score: 50, mode: .hard),
+        Achievement(id: "insane1", title: "LOSING IT", score: 10, mode: .insane),
+        Achievement(id: "insane2", title: "SEND HELP", score: 25, mode: .insane),
+        Achievement(id: "impossible1", title: "WORTH A TRY", score: 5, mode: .impossible),
+        Achievement(id: "impossible2", title: "NO WAY", score: 25, mode: .impossible),
+    ]
+
     static var legendsUnlocked: Bool {
         earned().contains("century")
     }
@@ -158,10 +174,13 @@ enum Achievements {
         Set(UserDefaults.standard.stringArray(forKey: earnedKey) ?? [])
     }
 
-    /// Records a finished round and returns the achievements it newly earned.
+    /// Records a finished round and returns the achievements it newly
+    /// earned: the normal game's goals for a NORMAL round, a hard mode's
+    /// own for a round in it. Never the other's.
     @discardableResult
-    static func record(score: Int) -> [Achievement] {
-        let goals = (all + legends).filter { score >= $0.score }.map(\.id)
+    static func record(score: Int, mode: GameMode) -> [Achievement] {
+        let candidates = mode == .normal ? all + legends : hard.filter { $0.mode == mode }
+        let goals = candidates.filter { score >= $0.score }.map(\.id)
 
         var earned = earned()
         let new = goals.filter { !earned.contains($0) }
@@ -170,6 +189,6 @@ enum Achievements {
         }
         earned.formUnion(new)
         UserDefaults.standard.set(earned.sorted(), forKey: earnedKey)
-        return (all + legends).filter { new.contains($0.id) }
+        return candidates.filter { new.contains($0.id) }
     }
 }

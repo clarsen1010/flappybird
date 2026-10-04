@@ -32,7 +32,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
 
         // Goals added later than a player's best (150 and up arrived in
         // 5.2) are earned from that best; nothing changes otherwise.
-        Achievements.record(score: ResultBoard.bestScore())
+        Achievements.record(score: ResultBoard.bestScore(), mode: .normal)
 
         activateAudioSession("launch")
 

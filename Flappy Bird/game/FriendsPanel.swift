@@ -63,6 +63,9 @@ class FriendsPanel: SKNode {
     private var listPage = 0
     /// The board showing on EVERYONE.
     private var scope = BoardScope.today
+    /// Whose scores are showing: the game's mode when the panel opens,
+    /// then whatever the mode box under the panel is turned to.
+    private var viewMode = GameMode.normal
     private let titleNode = SKNode()
     private let rowsNode = SKNode()
 
@@ -70,12 +73,15 @@ class FriendsPanel: SKNode {
 
     let closeButton = PanelButton(name: "panelBack", text: "BACK")
 
-    // Under the panel, either side of BACK. Each is there only while its
-    // page exists: the sprite hides and the touch box loses its name.
+    /// Left of BACK: which mode's scores.
+    let modeButton = PanelArt.modeBox(name: "friendsMode")
+
+    // Under the panel, right of BACK. Each is there only while its page
+    // exists: the sprite hides and the touch box loses its name.
     private let prevArrow = FriendsPanel.arrow(mirrored: false)
     private let nextArrow = FriendsPanel.arrow(mirrored: true)
-    private lazy var prevTouchBox = touchBox("friendsPrev", at: .zero, size: CGSize(width: 44, height: 44))
-    private lazy var nextTouchBox = touchBox("friendsNext", at: .zero, size: CGSize(width: 44, height: 44))
+    private lazy var prevTouchBox = touchBox("friendsPrev", at: .zero, size: CGSize(width: 32, height: 44))
+    private lazy var nextTouchBox = touchBox("friendsNext", at: .zero, size: CGSize(width: 32, height: 44))
 
     private static func arrow(mirrored: Bool) -> SKSpriteNode {
         SKSpriteNode(texture: SKTexture(imageNamed: "back-button").then { $0.filteringMode = .nearest }).then {
@@ -92,8 +98,10 @@ class FriendsPanel: SKNode {
         let barY = PanelArt.closeButtonY(rows: Layout.rowCount, reference: Layout.rowCount)
         closeButton.position = CGPoint(x: 0, y: barY)
         addChild(closeButton)
+        modeButton.position.y = barY
+        addChild(modeButton)
 
-        for (arrow, box, x) in [(prevArrow, prevTouchBox, CGFloat(-92)), (nextArrow, nextTouchBox, 92)] {
+        for (arrow, box, x) in [(prevArrow, prevTouchBox, CGFloat(64)), (nextArrow, nextTouchBox, 100)] {
             arrow.position = CGPoint(x: x, y: barY)
             box.position = arrow.position
             addChild(arrow)
@@ -117,6 +125,7 @@ class FriendsPanel: SKNode {
             list = .friends
             listPage = 0
             scope = .today
+            viewMode = GameMode.current
             clearMessage()
         }
         showPage()
@@ -164,8 +173,17 @@ class FriendsPanel: SKNode {
     }
 
     /// The board to fetch for what is showing, if it is a board.
-    var boardShowing: BoardScope? {
-        list == .everyone ? scope : nil
+    var boardShowing: (scope: BoardScope, mode: GameMode)? {
+        list == .everyone ? (scope, viewMode) : nil
+    }
+
+    /// The mode box: the next mode's scores. Looking only; the game's own
+    /// mode does not change.
+    func showNextMode() {
+        viewMode = viewMode.next
+        listPage = 0
+        clearMessage()
+        showPage()
     }
 
     /// A tap on TODAY / WEEK / MONTH / ALL TIME. False when it was
@@ -204,12 +222,12 @@ class FriendsPanel: SKNode {
     private func friendEntries() -> [Entry] {
         var me = FriendsStore.myRow()
         me.id = "me"
-        let rows = FriendsLogic.sorted(FriendsStore.friendRows() + [me])
+        let rows = FriendsLogic.sorted(FriendsStore.friendRows() + [me], mode: viewMode)
         return rows.enumerated().map { (rank: $0 + 1, row: $1, isMe: $1.id == "me") }
     }
 
     private func addedYouEntries() -> [Entry] {
-        FriendsLogic.sorted(FriendsStore.addedYouRows()).enumerated().map { (rank: $0 + 1, row: $1, isMe: false) }
+        FriendsLogic.sorted(FriendsStore.addedYouRows(), mode: viewMode).enumerated().map { (rank: $0 + 1, row: $1, isMe: false) }
     }
 
     private func pages<T>(_ entries: [T]) -> [[T]] {
@@ -224,7 +242,8 @@ class FriendsPanel: SKNode {
     private func showPage() {
         let added = addedYouEntries()
 
-        let board = FriendsStore.boardView(scope)
+        let board = FriendsStore.boardView(scope, mode: viewMode)
+        modeButton.text = viewMode.title
 
         let entries: [Entry]
         switch list {
@@ -317,7 +336,8 @@ class FriendsPanel: SKNode {
             rowsNode.addChild(PanelArt.label("TAP TO ADD BACK", size: 8, x: Layout.slotX, y: y, align: .left))
         }
 
-        if list == .friends {
+        // Today's best belongs to the normal game.
+        if list == .friends, viewMode == .normal {
             rowsNode.addChild(PanelArt.label("TODAY", size: 8, x: Layout.todayX, y: y))
         }
         rowsNode.addChild(PanelArt.label("BEST", size: 8, x: Layout.bestX, y: y))
@@ -326,6 +346,12 @@ class FriendsPanel: SKNode {
     /// EVERYONE's header row: which board. The word showing says what the
     /// numbers on the right are.
     private func showScopes() {
+        // A hard mode has one board.
+        guard viewMode == .normal else {
+            rowsNode.addChild(PanelArt.label("\(viewMode.title) - ALL TIME", size: 8, x: 0, y: rowCenterY(1)))
+            return
+        }
+
         PanelArt.tabs(
             BoardScope.allCases.map { (title: $0.title, name: Self.scopeName($0), selected: $0 == scope) },
             y: rowCenterY(1),
@@ -368,9 +394,11 @@ class FriendsPanel: SKNode {
             rowsNode.addChild(PanelArt.label(name, size: 10, x: Layout.nameX, y: y + 6, align: .left))
             rowsNode.addChild(PanelArt.label(FriendsLogic.agoText(row.lastPlayed, now: now), size: 8, x: Layout.nameX, y: y - 7, align: .left))
 
-            let todayBest = FriendsLogic.todayBest(row, todayKey: today)
-            rowsNode.addChild(PanelArt.label(todayBest.map { "\($0)" } ?? "-", size: 10, x: Layout.todayX, y: y))
-            rowsNode.addChild(PanelArt.score("\(row.best)", x: Layout.bestX, y: y))
+            if viewMode == .normal {
+                let todayBest = FriendsLogic.todayBest(row, todayKey: today)
+                rowsNode.addChild(PanelArt.label(todayBest.map { "\($0)" } ?? "-", size: 10, x: Layout.todayX, y: y))
+            }
+            rowsNode.addChild(PanelArt.score("\(row.best(viewMode))", x: Layout.bestX, y: y))
         }
 
         // Only your own row: say how to get company. The hint is a button
@@ -407,7 +435,7 @@ class FriendsPanel: SKNode {
 
             rowsNode.addChild(PanelArt.label("+", size: 10, x: Layout.rankX, y: y))
             rowsNode.addChild(PanelArt.label(entry.row.name, size: 10, x: Layout.nameX, y: y, align: .left))
-            rowsNode.addChild(PanelArt.score("\(entry.row.best)", x: Layout.bestX, y: y))
+            rowsNode.addChild(PanelArt.score("\(entry.row.best(viewMode))", x: Layout.bestX, y: y))
             rowsNode.addChild(touchBox("friendsAddBack\(index)", at: CGPoint(x: 0, y: y), size: CGSize(width: 226, height: 30)))
             addBackRows.append(entry.row)
         }
@@ -425,7 +453,7 @@ class FriendsPanel: SKNode {
             case .offline: text = "OFFLINE"
             case .failed: text = "UNAVAILABLE"
             case .ok:
-                switch scope {
+                switch viewMode == .normal ? scope : .all {
                 case .today: text = "NO SCORES TODAY"
                 case .week: text = "NO SCORES THIS WEEK"
                 case .month: text = "NO SCORES THIS MONTH"

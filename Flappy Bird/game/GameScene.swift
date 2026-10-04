@@ -139,6 +139,57 @@ final class GameScene: SKScene {
     private static let daySkyTop = UIColor(red: 78 / 255, green: 192 / 255, blue: 202 / 255, alpha: 1)
     private static let nightSkyTop = UIColor(red: 0, green: 135 / 255, blue: 147 / 255, alpha: 1)
 
+    /// How the world is drawn: day or night in the normal game, and each
+    /// hard mode's own colours (made by hard_art.py, which also prints
+    /// the sky-top colours below).
+    private enum Look: String {
+        case day, night, hard, insane, impossible
+
+        var skyTop: UIColor {
+            switch self {
+            case .day: return GameScene.daySkyTop
+            case .night: return GameScene.nightSkyTop
+            case .hard: return UIColor(red: 40 / 255, green: 12 / 255, blue: 23 / 255, alpha: 1)
+            case .insane: return UIColor(red: 24 / 255, green: 3 / 255, blue: 8 / 255, alpha: 1)
+            case .impossible: return UIColor(red: 6 / 255, green: 5 / 255, blue: 10 / 255, alpha: 1)
+            }
+        }
+
+        /// The colour the screen flashes when the mode button turns to it.
+        var flash: UIColor {
+            switch self {
+            case .day, .night: return .white
+            case .hard: return UIColor(red: 0.85, green: 0.25, blue: 0.10, alpha: 1)
+            case .insane: return UIColor(red: 0.70, green: 0.02, blue: 0.05, alpha: 1)
+            case .impossible: return .black
+            }
+        }
+    }
+
+    private struct LookArt {
+        let sky, ground, pipeUp, pipeDown: SKTexture
+    }
+
+    private lazy var lookArt: [Look: LookArt] = {
+        func texture(_ name: String) -> SKTexture {
+            Assets.shared.sprites.textureNamed(name).then { $0.filteringMode = .nearest }
+        }
+
+        var art: [Look: LookArt] = [
+            .day: LookArt(sky: dayTexture, ground: groundTexture, pipeUp: pipeTextureUp, pipeDown: pipeTextureDown),
+            .night: LookArt(sky: nightTexture, ground: groundNightTexture, pipeUp: pipeNightTextureUp, pipeDown: pipeNightTextureDown),
+        ]
+        for look in [Look.hard, .insane, .impossible] {
+            art[look] = LookArt(
+                sky: texture("\(look.rawValue)-sky"),
+                ground: texture("\(look.rawValue)-land"),
+                pipeUp: texture("\(look.rawValue)-PipeUp"),
+                pipeDown: texture("\(look.rawValue)-PipeDown")
+            )
+        }
+        return art
+    }()
+
     private let groundNightTexture =
         Assets.shared.sprites.textureNamed("night-land").then { $0.filteringMode = .nearest }
     private let pipeNightTextureUp =
@@ -167,6 +218,36 @@ final class GameScene: SKScene {
             let span = UInt64(range.upperBound - range.lowerBound + 1)
             return range.lowerBound + Int(next() % span)
         }
+    }
+
+    // MARK: Game mode
+
+    /// The mode of the round being played, fixed when it starts. The menu
+    /// and the panels follow GameMode.current.
+    private var roundMode = GameMode.normal
+    /// The world's speed: 1 in the normal game.
+    private var speedFactor: CGFloat = 1
+    private var pipePlanner = PipePlanner(tuning: GameMode.normal.tuning)
+    private var pipesSpawned = 0
+    private var hasExtraLife = false
+
+    /// Sets the world's speed: the scenery and pipes (everything under
+    /// `moving`) and the pipe spawner together, so the pipes stay the same
+    /// distance apart. The normal game passes 1.
+    private func applySpeed(_ speed: Double) {
+        speedFactor = CGFloat(speed)
+        moving.speed = speedFactor
+        action(forKey: "pipeSpawner")?.speed = speedFactor
+    }
+
+    /// The heart under the score while an extra life is held.
+    private lazy var heartNode = SKLabelNode(fontNamed: "KongtextRegular").then {
+        $0.text = "+1 LIFE"
+        $0.fontSize = 12
+        $0.fontColor = UIColor(red: 1, green: 0.35, blue: 0.40, alpha: 1)
+        $0.verticalAlignmentMode = .center
+        $0.position = CGPoint(x: width / 2, y: 3 * height / 4 - 26)
+        $0.zPosition = GameZPosition.score + 1
     }
 
     // MARK: Pipe seed
@@ -364,6 +445,14 @@ final class GameScene: SKScene {
     private var currentBirdColor = "yellow"
 
     private lazy var playButton = makePlayButton()
+
+    /// Under Play on the title and Game Over screens: the game's mode. A
+    /// tap turns it to the next one.
+    private lazy var modeButton = PanelButton(name: "mode", text: "", textSize: 8, width: 152, height: 30, hit: CGSize(width: 160, height: 40)).then {
+        $0.setScale(1.2)
+        $0.position = CGPoint(x: width / 2, y: 196)
+        $0.zPosition = GameZPosition.result
+    }
     private lazy var pauseButton = makePauseButton()
     private lazy var resumeButton = makeResumeButton()
     private lazy var pauseOverlay = makePauseOverlay()
@@ -605,12 +694,15 @@ final class GameScene: SKScene {
         addChild(Self.friendsButton)
         addChild(Self.settingsButton)
         addChild(playButton)
+        showModeName()
+        addChild(modeButton)
         pauseButton.removeFromParent()
         resumeButton.removeFromParent()
 
         score = 0
 
-        moving.speed = 1
+        // The title's scenery already moves at the chosen mode's pace.
+        moving.speed = CGFloat(GameMode.current.tuning.startSpeed)
         bird.speed = 1
 
         pipes.setScale(0)
@@ -682,6 +774,7 @@ final class GameScene: SKScene {
 
     private func updateSettingsUI() {
         settingsNode.showName(FriendsStore.myName)
+        settingsNode.modeButton.text = GameMode.current.title
 
         settingsNode.setSwitch(.sound, on: playSounds, animated: false)
         settingsNode.setSwitch(.haptics, on: haptics, animated: false)
@@ -1226,6 +1319,12 @@ final class GameScene: SKScene {
         case let name? where name.hasPrefix("scope"):
             handleScopeTap(name)
 
+        case "mode", "settingsMode":
+            handleModeTap()
+
+        case "friendsMode", "bestRunsMode":
+            handlePanelModeTap()
+
         case "friends":
             handleFriendsTap()
 
@@ -1307,7 +1406,8 @@ final class GameScene: SKScene {
     private func tapTarget(_ nodeName: String?) -> String {
         switch nodeName {
         case "play", "pause", "settings", "birdPicker", "bestRuns",
-             "panelBack", "tabRuns", "tabStats", "tabGoals", "friends",
+             "panelBack", "tabRuns", "tabStats", "tabGoals", "tabHard", "friends",
+             "mode", "settingsMode", "friendsMode", "bestRunsMode",
              "tabFriends", "tabEveryone", "tabAdded", "scopeToday", "scopeWeek", "scopeMonth", "scopeAll",
              "friendsPrev", "friendsNext", "friendsAdd", "friendsMe", "friendsShare", "editName",
              "friendsRow0", "friendsRow1", "friendsRow2", "friendsRow3", "friendsRow4",
@@ -1382,13 +1482,22 @@ final class GameScene: SKScene {
         // right edge instead of popping in on top of the bird.
         pipes.removeAllChildren()
         removeAction(forKey: "pipeSpawner")
+
+        roundMode = GameMode.current
+        pipePlanner = PipePlanner(tuning: roundMode.tuning)
+        pipesSpawned = 0
+        hasExtraLife = false
+        heartNode.removeFromParent()
+
         startPipeSpawner()
+        applySpeed(roundMode.tuning.startSpeed)
         pipes.setScale(1)
 
         bird.physicsBody?.isDynamic = true
 
         GameLog.roundStarted(
-            "theme=\(nightShown ? "night" : "day") bird=\(currentBirdColor)"
+            "theme=\(lookShown.rawValue) bird=\(currentBirdColor)"
+                + (roundMode == .normal ? "" : " mode=\(roundMode.rawValue) speed=\(speedFactor)")
                 + " sound=\(playSounds ? "on" : "off") haptics=\(haptics ? "on" : "off")"
         )
 
@@ -1606,6 +1715,7 @@ final class GameScene: SKScene {
         Self.friendsButton.removeFromParent()
         Self.settingsButton.removeFromParent()
         playButton.removeFromParent()
+        modeButton.removeFromParent()
 
         isWaitingToStart = true
         isGameOver = false
@@ -1688,6 +1798,102 @@ final class GameScene: SKScene {
         unlockButtons()
     }
 
+    // MARK: Game Mode
+
+    private func showModeName() {
+        modeButton.text = "MODE: \(GameMode.current.title)"
+        settingsNode.modeButton.text = GameMode.current.title
+    }
+
+    /// The mode button by Play, or the MODE row in Settings: the next
+    /// mode. On the title and Game Over screens the world changes in a
+    /// flash; behind the Settings panel it just changes.
+    private func handleModeTap() {
+        guard !Self.hitButton, bestRunsNode.parent == nil, friendsNode.parent == nil else {
+            return
+        }
+
+        Self.hitButton = true
+
+        GameMode.current = GameMode.current.next
+        GameLog.add("mode \(GameMode.current.rawValue)")
+        showModeName()
+
+        playSound(swooshSound)
+
+        let harder = GameMode.current != .normal
+
+        if haptics {
+            if harder {
+                deathFeedback.impactOccurred()
+            } else {
+                impactFeedback.impactOccurred()
+            }
+        }
+
+        // The round on a Game Over screen is over: only its colours
+        // change, and the speed waits for the next round.
+        let change = { [weak self] in
+            guard let self else { return }
+
+            self.refreshTheme()
+            if !self.isGameOver {
+                self.moving.speed = CGFloat(GameMode.current.tuning.startSpeed)
+            }
+        }
+
+        guard settingsNode.parent == nil else {
+            change()
+            return unlockButtons()
+        }
+
+        flashScreen(
+            color: lookWanted.flash,
+            fadeInDuration: 0.14,
+            peakAlpha: 0.95,
+            fadeOutDuration: 0.4
+        )
+
+        run(
+            .sequence([
+                .wait(forDuration: 0.14),
+                .run { [weak self] in
+                    change()
+
+                    if harder {
+                        self?.playSound(self?.hitSound)
+                        self?.shakeScreen()
+                    }
+                },
+                .wait(forDuration: 0.4),
+                .run {
+                    Self.hitButton = false
+                }
+            ])
+        )
+    }
+
+    /// The mode box under Friends or Best Runs: looks at another mode's
+    /// scores. The game's own mode stays.
+    private func handlePanelModeTap() {
+        guard !Self.hitButton else {
+            return
+        }
+
+        playSound(swooshSound)
+
+        if haptics {
+            impactFeedback.impactOccurred()
+        }
+
+        if bestRunsNode.parent != nil {
+            bestRunsNode.showNextMode()
+        } else if friendsNode.parent != nil {
+            friendsNode.showNextMode()
+            loadFriendsBoard()
+        }
+    }
+
     // MARK: Leaving a Panel
 
     /// BACK under a panel, or a tap outside it.
@@ -1768,11 +1974,11 @@ final class GameScene: SKScene {
     /// Fetches the board on screen, if EVERYONE is showing; the panel
     /// shows what it has (or LOADING) until it arrives.
     private func loadFriendsBoard() {
-        guard let scope = friendsNode.boardShowing else {
+        guard let board = friendsNode.boardShowing else {
             return
         }
 
-        FriendsStore.loadBoard(scope) { [weak self] in
+        FriendsStore.loadBoard(board.scope, mode: board.mode) { [weak self] in
             guard let self, self.friendsNode.parent != nil else {
                 return
             }
@@ -1818,7 +2024,7 @@ final class GameScene: SKScene {
 
     /// Scales the menu away while a panel (Settings, Best Runs, Friends) is open.
     private func hideMenu() {
-        for node in menuButtons + [playButton, isGameOver ? resultNode : bird] {
+        for node in menuButtons + [playButton, modeButton, isGameOver ? resultNode : bird] as [SKNode] {
             scaleTwice(
                 node: node,
                 firstScale: 1,
@@ -1830,7 +2036,7 @@ final class GameScene: SKScene {
     }
 
     private func restoreMenu() {
-        for node in menuButtons + [playButton] {
+        for node in menuButtons + [playButton, modeButton] as [SKNode] {
             scaleTwice(
                 node: node,
                 firstScale: 1,
@@ -2580,50 +2786,70 @@ final class GameScene: SKScene {
     // MARK: Sky and Theme
 
     /// What refreshTheme last applied; new pipes match it without a trait lookup.
-    private var nightShown = false
+    private var lookShown = Look.day
 
     /// Night when Dark Mode is on and the phone is in dark appearance.
     private var isNight: Bool {
         darkMode && view?.traitCollection.userInterfaceStyle == .dark
     }
 
-    /// Swaps day/night art on the existing nodes, so nothing restarts or
-    /// jumps. Called at launch, from the Dark Mode switch, at each new round,
-    /// and by GameViewController when the phone's appearance changes.
+    /// The hard modes have their own look, whatever the time of day; the
+    /// normal game is day or night.
+    private var lookWanted: Look {
+        switch GameMode.current {
+        case .normal: return isNight ? .night : .day
+        case .hard: return .hard
+        case .insane: return .insane
+        case .impossible: return .impossible
+        }
+    }
+
+    /// Swaps the art on the existing nodes, so nothing restarts or jumps.
+    /// Called at launch, from the Dark Mode switch and the mode button, at
+    /// each new round, and by GameViewController when the phone's
+    /// appearance changes.
     func refreshTheme() {
-        let night = isNight
-        if night != nightShown {
+        let look = lookWanted
+        if look != lookShown {
             // iOS flips the appearance light and back while it takes its
             // app-switcher snapshots; those lines are labelled.
-            GameLog.add("theme \(night ? "night" : "day")"
+            GameLog.add("theme \(look.rawValue)"
                 + (UIApplication.shared.applicationState == .active ? "" : " (app not on screen)"))
         }
-        nightShown = night
+        lookShown = look
 
-        backgroundColor = night ? Self.nightSkyTop : Self.daySkyTop
+        backgroundColor = look.skyTop
+
+        guard let art = lookArt[look] else {
+            return
+        }
 
         for node in skyNodes {
-            node.texture = night ? nightTexture : dayTexture
+            node.texture = art.sky
         }
 
         for node in groundNodes {
-            node.texture = night ? groundNightTexture : groundTexture
+            node.texture = art.ground
         }
 
         for group in pipes.children {
             for case let pipe as SKSpriteNode in group.children {
-                applyPipeLook(to: pipe, night: night)
+                applyPipeLook(to: pipe)
             }
         }
     }
 
-    /// Night pipes use the recolored night art (milder than the first cut).
-    private func applyPipeLook(to pipe: SKSpriteNode, night: Bool) {
+    /// A pipe in the look showing.
+    private func applyPipeLook(to pipe: SKSpriteNode) {
+        guard let art = lookArt[lookShown] else {
+            return
+        }
+
         switch pipe.name {
         case "pipeUp":
-            pipe.texture = night ? pipeNightTextureUp : pipeTextureUp
+            pipe.texture = art.pipeUp
         case "pipeDown":
-            pipe.texture = night ? pipeNightTextureDown : pipeTextureDown
+            pipe.texture = art.pipeDown
         default:
             break
         }
@@ -2696,6 +2922,12 @@ final class GameScene: SKScene {
     }
 
     private func spawnPipe() {
+        // The normal game's pipes are placed below, as they always were.
+        // The hard modes plan theirs.
+        guard roundMode == .normal else {
+            return spawnHardPipe()
+        }
+
         let quarterHeight = Int(height / 4)
 
         let y = CGFloat(
@@ -2759,6 +2991,83 @@ final class GameScene: SKScene {
         pipes.addChild(pipeGroup)
     }
 
+    /// A hard-mode pipe: placed by the planner, with that pipe's gap, and
+    /// sliding up and down when the mode has it.
+    private func spawnHardPipe() {
+        pipesSpawned += 1
+
+        let plan = pipePlanner.plan(pipe: pipesSpawned, quarter: Double(height / 4)) {
+            pipeRandom.nextInt(in: $0)
+        }
+
+        // A smaller gap closes evenly from both sides.
+        let squeeze = CGFloat(Tuning.normalGap - plan.gap) / 2
+        let y = CGFloat(plan.y)
+
+        let pipeDown = makePipe(
+            name: "pipeDown",
+            texture: pipeTextureDown,
+            position: CGPoint(
+                x: 0,
+                y: y + pipeTextureDown.height * 2 +
+                    Constants.verticalPipeGap - squeeze
+            )
+        )
+
+        let pipeUp = makePipe(
+            name: "pipeUp",
+            texture: pipeTextureUp,
+            position: CGPoint(x: 0, y: y + squeeze)
+        )
+
+        // At speed a slow frame could carry the bird clean past a sensor
+        // 4 wide: this one is 16, grown on its far side so the point
+        // still lands at the same moment.
+        let scoreNode = makeScoreNode(width: 16)
+        scoreNode.position.x += 6
+
+        let distance =
+            width +
+            2 * pipeTextureUp.width +
+            25
+
+        let slide = CGFloat(plan.slide)
+        let side: CGFloat = plan.startsHigh ? 1 : -1
+
+        let pipeGroup = SKNode().then {
+            $0.position = CGPoint(
+                x: width + pipeTextureUp.width * 2,
+                y: -352 + side * slide
+            )
+
+            $0.zPosition = GameZPosition.pipe
+
+            $0.addChild(pipeDown)
+            $0.addChild(pipeUp)
+            $0.addChild(scoreNode)
+
+            $0.run(
+                .sequence([
+                    .moveBy(x: -distance, y: 0, duration: Constants.pipeMoveSpeed * distance),
+                    .removeFromParent()
+                ])
+            )
+
+            if slide > 0 {
+                // These actions run at the world's speed: stretched by it,
+                // one slide takes the same time on the clock at any speed.
+                let half = pipePlanner.tuning.slidePeriod / 2 * Double(speedFactor)
+                let away = SKAction.moveBy(x: 0, y: -2 * side * slide, duration: half)
+                away.timingMode = .easeInEaseOut
+                let back = SKAction.moveBy(x: 0, y: 2 * side * slide, duration: half)
+                back.timingMode = .easeInEaseOut
+                $0.run(.repeatForever(.sequence([away, back])))
+            }
+        }
+
+        pipes.addChild(pipeGroup)
+    }
+
     private func makePipe(
         name: String,
         texture: SKTexture,
@@ -2766,7 +3075,7 @@ final class GameScene: SKScene {
     ) -> SKSpriteNode {
         SKSpriteNode(texture: texture).then {
             $0.name = name
-            applyPipeLook(to: $0, night: nightShown)
+            applyPipeLook(to: $0)
             $0.setScale(Constants.pipeScale)
             $0.position = position
 
@@ -2780,7 +3089,7 @@ final class GameScene: SKScene {
         }
     }
 
-    private func makeScoreNode() -> SKNode {
+    private func makeScoreNode(width sensorWidth: CGFloat = 4) -> SKNode {
         SKNode().then {
             // The scoring sensor sits just past the pipe's trailing edge:
             // the point lands when the bird's centre is about 6 units
@@ -2795,7 +3104,7 @@ final class GameScene: SKScene {
 
             $0.physicsBody = SKPhysicsBody(
                 rectangleOf: CGSize(
-                    width: 4,
+                    width: sensorWidth,
                     height: height
                 )
             ).then {
@@ -2817,6 +3126,10 @@ final class GameScene: SKScene {
         pauseButton.removeFromParent()
         resumeButton.removeFromParent()
         pauseOverlay.removeFromParent()
+
+        removeAction(forKey: "revive")
+        bird.alpha = 1
+        heartNode.removeFromParent()
 
         // Resume releases the tap lock from a pauseButton action; dying before
         // it finishes removed the button, the action never ran, and every
@@ -2925,18 +3238,25 @@ final class GameScene: SKScene {
             return
         }
 
+        // Each mode keeps its own best, runs and goals. The day-by-day
+        // stats (and with them the day, week and month scores friends see)
+        // are the normal game's alone.
+
         // Before resultNode.score saves a new best (see BestRuns.record).
-        BestRuns.record(score)
-        GameStats.record(score: score)
-        Achievements.record(score: score)
+        BestRuns.record(score, mode: roundMode)
+        if roundMode == .normal {
+            GameStats.record(score: score)
+        }
+        Achievements.record(score: score, mode: roundMode)
 
         resultNode.setScale(0)
+        resultNode.mode = roundMode
         resultNode.score = score
         addChild(resultNode)
 
         // After every save above (the result board saves a new best).
         CloudSync.merge()
-        FriendsStore.roundEnded()
+        FriendsStore.roundEnded(mode: roundMode)
 
         scaleTwice(
             node: resultNode,
@@ -2973,6 +3293,19 @@ final class GameScene: SKScene {
             secondScaleDuration: 0.1
         )
 
+        modeButton.removeFromParent()
+        modeButton.setScale(0)
+        showModeName()
+        addChild(modeButton)
+
+        scaleTwice(
+            node: modeButton,
+            firstScale: 1,
+            firstScaleDuration: 0.1,
+            secondScale: 1.2,
+            secondScaleDuration: 0.1
+        )
+
         // The buttons appear where the thumb has been tapping; a tap still
         // in flight from the round must not press Play or switch birds.
         // Released from a scene action: a node's own action dies with the
@@ -2989,6 +3322,7 @@ final class GameScene: SKScene {
 
         GameLog.roundEnded(score: score)
     }
+
 
     // MARK: Reset
 
@@ -3019,9 +3353,14 @@ final class GameScene: SKScene {
 
         score = 0
 
-        moving.speed = 1
+        applySpeed(GameMode.current.tuning.startSpeed)
         bird.speed = 1
         pipes.setScale(0)
+
+        hasExtraLife = false
+        heartNode.removeFromParent()
+        removeAction(forKey: "revive")
+        bird.alpha = 1
 
         bird.zRotation = 0
         bird.position = CGPoint(
@@ -3079,6 +3418,18 @@ final class GameScene: SKScene {
 
         if Self.isMilestone(score) {
             celebrateMilestone()
+        }
+
+        if roundMode != .normal {
+            let tuning = roundMode.tuning
+            let speed = tuning.speed(forScore: score)
+            if CGFloat(speed) != speedFactor {
+                applySpeed(speed)
+            }
+
+            if tuning.lives, !hasExtraLife, Tuning.earnsLife(score: score) {
+                earnExtraLife()
+            }
         }
 
         scaleTwice(
@@ -3176,6 +3527,75 @@ final class GameScene: SKScene {
         gameOver()
     }
 
+    // MARK: Extra Life
+
+    private func earnExtraLife() {
+        hasExtraLife = true
+        GameLog.add("life earned score=\(score)")
+
+        heartNode.removeFromParent()
+        heartNode.setScale(0)
+        addChild(heartNode)
+        scaleTwice(node: heartNode, firstScale: 1.4, firstScaleDuration: 0.1, secondScale: 1, secondScaleDuration: 0.1)
+    }
+
+    /// A pipe was hit with an extra life in hand: the life goes, that pipe
+    /// pair turns to a ghost the bird flies through, and the round goes
+    /// on. False when there is no life to spend.
+    private func tryRevive(_ contact: SKPhysicsContact) -> Bool {
+        let pipeBody = contact.bodyA.categoryBitMask & PhysicsCategory.pipe != 0
+            ? contact.bodyA
+            : contact.bodyB
+
+        guard hasExtraLife, let group = pipeBody.node?.parent else {
+            return false
+        }
+
+        hasExtraLife = false
+        heartNode.removeFromParent()
+        GameLog.add("life used score=\(score)")
+
+        // This pair no longer touches anything; its score sensor still
+        // counts. The pairs behind it are as solid as ever.
+        for case let pipe as SKSpriteNode in group.children where pipe.name == "pipeUp" || pipe.name == "pipeDown" {
+            pipe.physicsBody?.categoryBitMask = 0
+            pipe.physicsBody?.contactTestBitMask = 0
+            pipe.alpha = 0.35
+        }
+
+        // The hit has already shoved and spun the bird: put it back on
+        // its line with a small hop, as after a flap.
+        bird.position.x = width / 2.5
+        bird.physicsBody?.velocity = CGVector(dx: 0, dy: 150)
+        bird.physicsBody?.angularVelocity = 0
+        bird.zRotation = Constants.flapRotation
+        lastFlapTime = CFAbsoluteTimeGetCurrent()
+
+        // Blinks on the scene's clock: the bird's own speed changes with
+        // its tilt.
+        let blink = SKAction.sequence([
+            .run { [weak self] in self?.bird.alpha = 0.35 },
+            .wait(forDuration: 0.08),
+            .run { [weak self] in self?.bird.alpha = 1 },
+            .wait(forDuration: 0.08)
+        ])
+        run(.repeat(blink, count: 5), withKey: "revive")
+
+        flashScreen(
+            color: UIColor(red: 1, green: 0.55, blue: 0.60, alpha: 1),
+            fadeInDuration: 0.05,
+            peakAlpha: 0.6,
+            fadeOutDuration: 0.2
+        )
+
+        if haptics {
+            notificationFeedback.notificationOccurred(.warning)
+        }
+
+        playSound(hitSound)
+        return true
+    }
+
     /// Play log: what was on screen in the last drawn frame before a pipe
     /// death, so a death that looked unfair can be checked.
     ///
@@ -3206,7 +3626,7 @@ final class GameScene: SKScene {
         let radius = defaultBirdTexture.height * Constants.birdScale / 2
 
         // Where the pipe was when he last saw it: it has since moved this far.
-        let moved = CGFloat(timeSinceDrawn / Constants.pipeMoveSpeed)
+        let moved = CGFloat(timeSinceDrawn / Constants.pipeMoveSpeed) * moving.speed
         let drawnCentreX = centre.x + moved
 
         let dx = max(abs(drawnBirdPosition.x - drawnCentreX) - halfWidth, 0)
@@ -3319,7 +3739,11 @@ extension GameScene: SKPhysicsContactDelegate {
                 contact,
                 with: PhysicsCategory.pipe
             ) {
+            // Logged either way, so a hit that cost a life can be checked too.
             logPipeDeath(contact)
+            if tryRevive(contact) {
+                return
+            }
             handlePipeCollision()
             return
         }

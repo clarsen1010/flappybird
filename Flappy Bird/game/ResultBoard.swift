@@ -24,8 +24,8 @@ public class ResultBoard: SKSpriteNode {
         let image = Assets.shared.sprites.textureNamed("scoreboard").then { $0.filteringMode = .nearest }
         self.init(texture: image, color: UIColor.clear, size: image.size())
         
-        bestScore.text = "\(ResultBoard.bestScore())"
-        bestScoreInside.text = "\(ResultBoard.bestScore())"
+        bestScore.text = "\(ResultBoard.best(mode: mode))"
+        bestScoreInside.text = "\(ResultBoard.best(mode: mode))"
         currentScore.text = "0"
         currentScoreInside.text = "0"
         
@@ -37,9 +37,28 @@ public class ResultBoard: SKSpriteNode {
         addChild(currentScoreInside)
         addChild(bestScoreInside)
         addChild(medal)
+        addChild(modeTag)
+        addChild(modeTagInside)
         self.score = score
     }
     
+    // The mode's name along the card's top edge, in the score digits' style.
+    private lazy var modeTag = SKLabelNode(fontNamed: "04b_19").then {
+        $0.zPosition = GamezPosition.resultText + 1
+        $0.fontSize = 12
+        $0.fontColor = SKColor.black
+        $0.verticalAlignmentMode = .center
+        $0.position = CGPoint(x: frame.midX, y: frame.midY + 44)
+    }
+
+    private lazy var modeTagInside = SKLabelNode(fontNamed: "inside").then {
+        $0.zPosition = GamezPosition.resultText
+        $0.fontSize = 12
+        $0.fontColor = SKColor.white
+        $0.verticalAlignmentMode = .center
+        $0.position = CGPoint(x: frame.midX - 0.37, y: frame.midY + 44)
+    }
+
     private lazy var currentScore = SKLabelNode(fontNamed: "04b_19").then {
         $0.zPosition = GamezPosition.resultText + 1
         $0.fontSize = 16
@@ -95,6 +114,15 @@ public class ResultBoard: SKSpriteNode {
         SKAction.scale(to: 0.0, duration: 0.3)
     ]))
     
+    /// The mode the round was played in: its own best, and its name on
+    /// the card (nothing for NORMAL). Set before `score`.
+    var mode = GameMode.normal {
+        didSet {
+            modeTag.text = mode == .normal ? "" : mode.title
+            modeTagInside.text = modeTag.text
+        }
+    }
+
     var score: Int = 0 {
         didSet {
             #if DEBUG
@@ -109,9 +137,9 @@ public class ResultBoard: SKSpriteNode {
             // thread + usleep. The best score is read and saved up front so the
             // medal below can't race the save.
             let finalScore = score
-            let previousHighScore = ResultBoard.bestScore()
+            let previousHighScore = ResultBoard.best(mode: mode)
             if finalScore > previousHighScore {
-                ResultBoard.setBestScore(finalScore)
+                ResultBoard.setBest(finalScore, mode: mode)
             }
 
             removeAction(forKey: "countUp")
@@ -177,7 +205,7 @@ private final class CountUpProgress {
     var shown = -1
 }
 
-public extension ResultBoard {
+extension ResultBoard {
     /// nil below 10: no medal.
     class func medalName(for score: Int) -> String? {
         switch score {
@@ -189,12 +217,22 @@ public extension ResultBoard {
         }
     }
 
-    class func bestScore() -> Int {
-        return UserDefaults.standard.integer(forKey: "bestScore")
+    /// Each mode has its own best. NORMAL's key is the one it always had.
+    class func bestKey(mode: GameMode) -> String {
+        "bestScore" + mode.suffix
     }
-    
-    class func setBestScore(_ score: Int) {
-        UserDefaults.standard.set(score, forKey: "bestScore")
+
+    class func best(mode: GameMode) -> Int {
+        UserDefaults.standard.integer(forKey: bestKey(mode: mode))
+    }
+
+    /// The NORMAL best.
+    class func bestScore() -> Int {
+        best(mode: .normal)
+    }
+
+    class func setBest(_ score: Int, mode: GameMode) {
+        UserDefaults.standard.set(score, forKey: bestKey(mode: mode))
         UserDefaults.standard.synchronize()
     }
 }

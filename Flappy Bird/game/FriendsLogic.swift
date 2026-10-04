@@ -26,6 +26,33 @@ struct PlayerRow: Codable, Equatable {
     var weekBest: Int?
     var monthKey: String?
     var monthBest: Int?
+    /// Best ever in each hard mode. Optional like the fields above; nil
+    /// also for a mode never scored in.
+    var bestHard: Int?
+    var bestInsane: Int?
+    var bestImpossible: Int?
+
+    /// Best ever in a mode; 0 when there is none.
+    func best(_ mode: GameMode) -> Int {
+        switch mode {
+        case .normal: return best
+        case .hard: return bestHard ?? 0
+        case .insane: return bestInsane ?? 0
+        case .impossible: return bestImpossible ?? 0
+        }
+    }
+
+    /// Sets a hard mode's best; 0 is stored as none.
+    mutating func setBest(_ value: Int, _ mode: GameMode) {
+        let stored = value > 0 ? value : nil
+
+        switch mode {
+        case .normal: best = value
+        case .hard: bestHard = stored
+        case .insane: bestInsane = stored
+        case .impossible: bestImpossible = stored
+        }
+    }
 }
 
 /// The boards on the EVERYONE list.
@@ -108,9 +135,19 @@ enum FriendsLogic {
         row.dayKey == todayKey ? row.dayBest : nil
     }
 
-    /// Best first; equal bests in name order so the list does not reshuffle.
-    static func sorted(_ rows: [PlayerRow]) -> [PlayerRow] {
-        rows.sorted { $0.best != $1.best ? $0.best > $1.best : $0.name < $1.name }
+    /// Best first (in `mode`); equal bests in name order so the list does
+    /// not reshuffle.
+    static func sorted(_ rows: [PlayerRow], mode: GameMode = .normal) -> [PlayerRow] {
+        rows.sorted { $0.best(mode) != $1.best(mode) ? $0.best(mode) > $1.best(mode) : $0.name < $1.name }
+    }
+
+    /// For the Game Over card: the friend just ahead in `mode`, and how
+    /// many points pass them. Nil with nobody ahead.
+    static func chaseTarget(friends: [PlayerRow], mode: GameMode, myBest: Int) -> (name: String, points: Int)? {
+        friends
+            .filter { $0.best(mode) >= myBest && $0.best(mode) > 0 }
+            .min { $0.best(mode) != $1.best(mode) ? $0.best(mode) < $1.best(mode) : $0.name < $1.name }
+            .map { ($0.name, $0.best(mode) - myBest + 1) }
     }
 
     /// What to store when this phone publishes its scores over an existing
@@ -142,6 +179,10 @@ enum FriendsLogic {
             row.monthBest = server.monthBest
         } else if serverMonth == localMonth, !localMonth.isEmpty {
             row.monthBest = max(server.monthBest ?? 0, local.monthBest ?? 0)
+        }
+        // The hard modes' bests, like the normal one, are never lowered.
+        for mode in [GameMode.hard, .insane, .impossible] {
+            row.setBest(max(server.best(mode), local.best(mode)), mode)
         }
         if let theirs = server.lastPlayed, theirs > (local.lastPlayed ?? .distantPast) {
             row.lastPlayed = theirs
@@ -205,7 +246,12 @@ enum FriendsLogic {
 
     /// A player's score on a board, 0 when they are not on it. `key` is
     /// the viewer's current day, week or month key (unused for all time).
-    static func boardValue(_ row: PlayerRow, scope: BoardScope, key: String) -> Int {
+    /// The hard modes have one board each, all time.
+    static func boardValue(_ row: PlayerRow, scope: BoardScope, key: String, mode: GameMode = .normal) -> Int {
+        guard mode == .normal else {
+            return row.best(mode)
+        }
+
         switch scope {
         case .today: return row.dayKey == key ? row.dayBest : 0
         case .week: return row.weekKey == key ? row.weekBest ?? 0 : 0
@@ -224,13 +270,14 @@ enum FriendsLogic {
         rows: [PlayerRow],
         scope: BoardScope,
         key: String,
+        mode: GameMode = .normal,
         me: (id: String, name: String, value: Int)?,
         shown: Int,
         fetchedAll: Bool
     ) -> (top: [BoardEntry], you: BoardEntry?, youRankKnown: Bool) {
         var lines = rows
             .filter { $0.id != me?.id }
-            .map { (name: $0.name, value: boardValue($0, scope: scope, key: key), isMe: false) }
+            .map { (name: $0.name, value: boardValue($0, scope: scope, key: key, mode: mode), isMe: false) }
             .filter { $0.value > 0 }
 
         if let me, me.value > 0 {

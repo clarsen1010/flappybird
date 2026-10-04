@@ -15,40 +15,48 @@ struct BestRun: Codable, Equatable {
 enum BestRuns {
     static let shownCount = 6
 
-    /// The run recorded at the end of the last round, highlighted on the board.
+    /// The run recorded at the end of the last round, highlighted on the
+    /// board of the mode it was played in.
     static var lastRecorded: BestRun?
+    static var lastRecordedMode = GameMode.normal
 
-    private static let key = "bestRuns"
     static let keptCount = 10
 
-    static func load() -> [BestRun] {
-        if let data = UserDefaults.standard.data(forKey: key),
+    /// Each mode has its own list. NORMAL's key is the one it always had.
+    static func key(mode: GameMode) -> String {
+        "bestRuns" + mode.suffix
+    }
+
+    static func load(mode: GameMode) -> [BestRun] {
+        if let data = UserDefaults.standard.data(forKey: key(mode: mode)),
            let runs = try? JSONDecoder().decode([BestRun].self, from: data) {
             return runs
         }
 
         // Nothing recorded yet: seed with the best score saved before this
-        // board existed (its date was never stored).
-        let best = ResultBoard.bestScore()
+        // board existed (its date was never stored). Only NORMAL is that
+        // old; the hard modes came with their lists.
+        let best = mode == .normal ? ResultBoard.bestScore() : 0
         return best > 0 ? [BestRun(score: best, date: nil)] : []
     }
 
     /// Call before ResultBoard saves a new best, so the seed above is the
     /// previous best rather than this run.
-    static func record(_ score: Int) {
+    static func record(_ score: Int, mode: GameMode) {
         lastRecorded = nil
 
         guard score > 0 else {
             return
         }
 
-        var runs = load()
+        var runs = load(mode: mode)
         let run = BestRun(score: score, date: Date())
         lastRecorded = run
+        lastRecordedMode = mode
         runs.append(run)
 
         if let data = try? JSONEncoder().encode(Array(sorted(runs).prefix(keptCount))) {
-            UserDefaults.standard.set(data, forKey: key)
+            UserDefaults.standard.set(data, forKey: key(mode: mode))
         }
     }
 
@@ -77,13 +85,14 @@ class BestRunsPanel: SKNode {
     }
 
     private enum Page: Int, CaseIterable {
-        case runs, stats, goals
+        case runs, stats, goals, hard
 
         var title: String {
             switch self {
             case .runs: return "RUNS"
             case .stats: return "STATS"
             case .goals: return "GOALS"
+            case .hard: return "HARD"
             }
         }
 
@@ -93,6 +102,7 @@ class BestRunsPanel: SKNode {
             case .runs: return "tabRuns"
             case .stats: return "tabStats"
             case .goals: return "tabGoals"
+            case .hard: return "tabHard"
             }
         }
     }
@@ -123,23 +133,37 @@ class BestRunsPanel: SKNode {
         "score400": UIColor(red: 0.98, green: 0.45, blue: 0.75, alpha: 1),
         "score500": UIColor(red: 0.35, green: 0.78, blue: 0.30, alpha: 1),
         "score1000": UIColor(red: 0.15, green: 0.13, blue: 0.16, alpha: 1),
+        // The hard modes' goals, in their worlds' colours.
+        "hard1": UIColor(red: 0.90, green: 0.40, blue: 0.20, alpha: 1),
+        "hard2": UIColor(red: 0.90, green: 0.40, blue: 0.20, alpha: 1),
+        "insane1": UIColor(red: 0.80, green: 0.10, blue: 0.15, alpha: 1),
+        "insane2": UIColor(red: 0.80, green: 0.10, blue: 0.15, alpha: 1),
+        "impossible1": UIColor(red: 0.25, green: 0.15, blue: 0.35, alpha: 1),
+        "impossible2": UIColor(red: 0.25, green: 0.15, blue: 0.35, alpha: 1),
     ]
 
     /// With the goals past 100 showing, the Goals page is two rows taller.
     private static let legendRowCount = Layout.rowCount + 2
 
     private var page = Page.runs
+    /// Whose runs are showing: the game's mode when the panel opens, then
+    /// whatever the mode box under the panel is turned to.
+    private var viewMode = GameMode.normal
     private let backgroundNode = SKNode()
     private let titleNode = SKNode()
     private let rowsNode = SKNode()
 
     let closeButton = PanelButton(name: "panelBack", text: "BACK")
 
+    /// Left of BACK, on the runs page: which mode's runs.
+    let modeButton = PanelArt.modeBox(name: "bestRunsMode")
+
     override init() {
         super.init()
 
         addChild(backgroundNode)
         addChild(closeButton)
+        addChild(modeButton)
         addChild(titleNode)
         addChild(rowsNode)
 
@@ -150,9 +174,17 @@ class BestRunsPanel: SKNode {
         fatalError("init(coder:) has not been implemented")
     }
 
-    /// Opens on Best Runs.
+    /// Opens on Best Runs, in the mode the game is in.
     func reload() {
         page = .runs
+        viewMode = GameMode.current
+        showPage()
+    }
+
+    /// The mode box: the next mode's runs. Looking only; the game's own
+    /// mode does not change.
+    func showNextMode() {
+        viewMode = viewMode.next
         showPage()
     }
 
@@ -186,11 +218,13 @@ class BestRunsPanel: SKNode {
             } else {
                 showGoals(Achievements.all, firstRow: 1)
             }
+        case .hard:
+            showGoals(Achievements.hard, firstRow: 1)
         }
     }
 
     private func showRuns() {
-        let runs = Array(BestRuns.load().prefix(BestRuns.shownCount))
+        let runs = Array(BestRuns.load(mode: viewMode).prefix(BestRuns.shownCount))
 
         guard !runs.isEmpty else {
             rowsNode.addChild(makeLabel("NO RUNS YET", size: 10, x: 0, y: rowCenterY(3)))
@@ -212,7 +246,7 @@ class BestRunsPanel: SKNode {
             }
 
             // The run you just played.
-            if run == BestRuns.lastRecorded {
+            if run == BestRuns.lastRecorded, viewMode == BestRuns.lastRecordedMode {
                 rowsNode.addChild(SKSpriteNode(texture: Assets.shared.sprites.textureNamed("new").then { $0.filteringMode = .nearest }).then {
                     $0.position = CGPoint(x: Layout.newX, y: y)
                     $0.setScale(0.75)
@@ -305,6 +339,10 @@ class BestRunsPanel: SKNode {
         backgroundNode.position.y = (PanelArt.height(rows: Layout.rowCount) - PanelArt.height(rows: rows)) / 2
         PanelArt.background(rows: rows).forEach(backgroundNode.addChild)
         closeButton.position.y = PanelArt.closeButtonY(rows: rows, reference: Layout.rowCount)
+        modeButton.position.y = closeButton.position.y
+        modeButton.isHidden = page != .runs
+        modeButton.isEnabled = page == .runs
+        modeButton.text = viewMode.title
     }
 
     private func makeLabel(_ text: String, size: CGFloat, x: CGFloat, y: CGFloat) -> SKNode {
@@ -338,6 +376,14 @@ enum PanelArt {
     /// `rows` rows whose top edge is where a `reference`-row panel's is.
     static func closeButtonY(rows: Int, reference: Int) -> CGFloat {
         height(rows: reference) / 2 - height(rows: rows) - 24
+    }
+
+    /// The box under a panel that says whose scores are showing; a tap
+    /// turns it to the next mode. Wide enough for IMPOSSIBLE.
+    static func modeBox(name: String) -> PanelButton {
+        PanelButton(name: name, text: GameMode.normal.title, textSize: 8, width: 96, height: 30, hit: CGSize(width: 100, height: 44)).then {
+            $0.position.x = -84
+        }
     }
 
     static let tabColor = PanelButton.textColor

@@ -9,6 +9,7 @@
 //  - bestScore: the higher value wins.
 //  - bestRuns: both lists combined, duplicates dropped, a dateless row
 //    dropped when a dated row has the same score, sorted, top 10 kept.
+//    (Both once per game mode: the hard modes keep their own.)
 //  - dayStats: per day, the record with more games wins, ties broken by
 //    pipes then best (two phones playing on the same day under-count;
 //    accepted).
@@ -51,20 +52,25 @@ enum CloudSync {
         var localChanged = false
         var cloudChanged = false
 
-        // Best score
-        let localBest = defaults.integer(forKey: "bestScore")
-        let cloudBest = Int(store.longLong(forKey: "bestScore"))
-        let best = max(localBest, cloudBest)
-        if best != localBest { defaults.set(best, forKey: "bestScore"); localChanged = true }
-        if best != cloudBest { store.set(Int64(best), forKey: "bestScore"); cloudChanged = true }
+        for mode in GameMode.allCases {
+            // Best score
+            let bestKey = ResultBoard.bestKey(mode: mode)
+            let localBest = defaults.integer(forKey: bestKey)
+            let cloudBest = Int(store.longLong(forKey: bestKey))
+            let best = max(localBest, cloudBest)
+            if best != localBest { defaults.set(best, forKey: bestKey); localChanged = true }
+            if best != cloudBest { store.set(Int64(best), forKey: bestKey); cloudChanged = true }
 
-        // Best runs
-        let localRuns = decodeRuns(defaults.data(forKey: "bestRuns"))
-        let cloudRuns = decodeRuns(store.data(forKey: "bestRuns"))
-        let runs = mergeRuns(localRuns, cloudRuns)
-        if let data = try? JSONEncoder().encode(runs) {
-            if runs != localRuns { defaults.set(data, forKey: "bestRuns"); localChanged = true }
-            if runs != cloudRuns { store.set(data, forKey: "bestRuns"); cloudChanged = true }
+            // Best runs
+            let runsKey = BestRuns.key(mode: mode)
+            let localRuns = decodeRuns(defaults.data(forKey: runsKey))
+            let cloudRuns = decodeRuns(store.data(forKey: runsKey))
+            let runs = mergeRuns(localRuns, cloudRuns)
+            // A mode never played has no list to store.
+            if !runs.isEmpty || mode == .normal, let data = try? JSONEncoder().encode(runs) {
+                if runs != localRuns { defaults.set(data, forKey: runsKey); localChanged = true }
+                if runs != cloudRuns { store.set(data, forKey: runsKey); cloudChanged = true }
+            }
         }
 
         // Day stats
