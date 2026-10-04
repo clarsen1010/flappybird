@@ -150,7 +150,7 @@ final class GameScene: SKScene {
             switch self {
             case .day: return GameScene.daySkyTop
             case .night: return GameScene.nightSkyTop
-            case .hard: return UIColor(red: 40 / 255, green: 12 / 255, blue: 23 / 255, alpha: 1)
+            case .hard: return UIColor(red: 53 / 255, green: 20 / 255, blue: 12 / 255, alpha: 1)
             case .insane: return UIColor(red: 24 / 255, green: 3 / 255, blue: 8 / 255, alpha: 1)
             case .impossible: return UIColor(red: 6 / 255, green: 5 / 255, blue: 10 / 255, alpha: 1)
             }
@@ -1071,15 +1071,33 @@ final class GameScene: SKScene {
             }
 
             roundColor = color
-            birdTextures[index] =
-                Assets.shared.sprites.textureNamed(
-                    "\(color)-bird-\(index + 1)"
-                ).then {
-                    $0.filteringMode = .nearest
-                }
+            birdTextures[index] = birdTexture(color, frame: index + 1)
         }
 
         currentBirdColor = roundColor
+        applyBirdAnimation()
+    }
+
+    /// A wing frame of a bird as the game's mode draws it: the plain bird
+    /// in the normal game, an angry brow in HARD, X eyes in INSANE and
+    /// IMPOSSIBLE (art from bird_art.py).
+    private func birdTexture(_ color: String, frame: Int) -> SKTexture {
+        let look: String
+
+        switch GameMode.current {
+        case .normal: look = ""
+        case .hard: look = "-angry"
+        case .insane, .impossible: look = "-x"
+        }
+
+        return Assets.shared.sprites.textureNamed("\(color)-bird\(look)-\(frame)").then {
+            $0.filteringMode = .nearest
+        }
+    }
+
+    /// The same bird in the mode's look, after the mode button changed it.
+    private func refreshBirdLook() {
+        birdTextures = (1...3).map { birdTexture(currentBirdColor, frame: $0) }
         applyBirdAnimation()
     }
 
@@ -1874,6 +1892,9 @@ final class GameScene: SKScene {
             self.refreshTheme()
             if !self.isGameOver {
                 self.moving.speed = CGFloat(GameMode.current.tuning.startSpeed)
+                // The bird on the title wears the mode's look too. On Game
+                // Over the bird that died stays as it fell.
+                self.refreshBirdLook()
             }
         }
 
@@ -3227,6 +3248,11 @@ final class GameScene: SKScene {
 
         playSound(hitSound)
 
+        // In INSANE and IMPOSSIBLE the bird does not just drop.
+        if roundMode == .insane || roundMode == .impossible {
+            explodeBird()
+        }
+
         run(
             .sequence([
                 .wait(forDuration: 0.2),
@@ -3593,10 +3619,8 @@ final class GameScene: SKScene {
     }
 
     /// Looked up once; the switch happens inside the scoring contact callback.
-    private let superBirdTextures = (1...3).map {
-        Assets.shared.sprites.textureNamed("super-bird-\($0)").then {
-            $0.filteringMode = .nearest
-        }
+    private var superBirdTextures: [SKTexture] {
+        (1...3).map { birdTexture("super", frame: $0) }
     }
 
     private func enableSuperBird() {
@@ -3732,7 +3756,63 @@ final class GameScene: SKScene {
         lastTapTime > 0 ? (CACurrentMediaTime() - lastTapTime) * 1000 : -1
     }
 
+    /// The bird bursts into pieces where it was hit. What is left of it
+    /// still falls (unseen) to the ground, which brings the headstone and
+    /// the results as after any death.
+    private func explodeBird() {
+        let colors: [UIColor] = [
+            .white,
+            UIColor(red: 1, green: 0.86, blue: 0.31, alpha: 1),
+            UIColor(red: 1, green: 0.59, blue: 0.16, alpha: 1),
+            UIColor(red: 0.90, green: 0.20, blue: 0.16, alpha: 1),
+            PanelButton.textColor,
+        ]
+        let pieces = 30
+
+        for index in 0..<pieces {
+            let side = CGFloat([4, 6, 8, 10][index % 4])
+            let angle = CGFloat(index) / CGFloat(pieces) * 2 * .pi + CGFloat.random(in: -0.2...0.2)
+            let reach = CGFloat.random(in: 70...190)
+
+            let piece = SKSpriteNode(color: colors[index % colors.count], size: CGSize(width: side, height: side)).then {
+                $0.position = bird.position
+                $0.zPosition = GameZPosition.bird + 0.5
+            }
+            addChild(piece)
+
+            let fly = SKAction.moveBy(x: cos(angle) * reach, y: sin(angle) * reach, duration: 0.5)
+            fly.timingMode = .easeOut
+
+            piece.run(.sequence([
+                .group([
+                    fly,
+                    .rotate(byAngle: .pi * 2, duration: 0.5),
+                    .sequence([.wait(forDuration: 0.25), .fadeOut(withDuration: 0.25)])
+                ]),
+                .removeFromParent()
+            ]))
+        }
+
+        bird.alpha = 0
+
+        flashScreen(
+            color: UIColor(red: 1, green: 0.55, blue: 0.10, alpha: 1),
+            fadeInDuration: 0.04,
+            peakAlpha: 0.8,
+            fadeOutDuration: 0.3
+        )
+
+        // A second jolt on top of the death shake.
+        run(.sequence([.wait(forDuration: 0.25), .run { [weak self] in self?.shakeScreen() }]))
+    }
+
     private func showGrave() {
+        // A headstone in the hard modes, the wooden cross in the normal game.
+        graveNode.texture = Assets.shared.sprites.textureNamed(roundMode == .normal ? "grave-cross" : "grave-stone").then {
+            $0.filteringMode = .nearest
+        }
+        graveNode.size = graveNode.texture?.size() ?? graveNode.size
+
         graveNode.removeAllActions()
         graveNode.removeFromParent()
         graveNode.position = CGPoint(
