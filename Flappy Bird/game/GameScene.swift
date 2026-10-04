@@ -1703,8 +1703,9 @@ final class GameScene: SKScene {
             startAllowedAt = CACurrentMediaTime() + 0.25
         }
 
-        // Scores may have changed while the app was away.
-        if friendsNode.parent != nil {
+        // Scores may have changed while the app was away. (openPanel, not
+        // friendsNode: naming the lazy panel would build it.)
+        if openPanel is FriendsPanel {
             refreshFriends()
         } else {
             checkFriendsBadge()
@@ -2412,7 +2413,9 @@ final class GameScene: SKScene {
             guard let self else { return }
 
             self.updateFriendsBadge()
-            if self.friendsNode.parent != nil {
+            // This can land mid-round: ask openPanel, which never builds
+            // the lazy Friends panel (3-11 ms) the way naming it would.
+            if self.openPanel is FriendsPanel {
                 self.friendsNode.reload(keepPage: true)
             }
         }
