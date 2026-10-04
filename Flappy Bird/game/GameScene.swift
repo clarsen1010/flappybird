@@ -2054,6 +2054,12 @@ final class GameScene: SKScene {
             guard let self, self.friendsNode.parent != nil else {
                 return
             }
+            // Midnight (or a new week or month) passed while it loaded.
+            if let showing = self.friendsNode.boardShowing,
+               !FriendsStore.boardIsCurrent(showing.scope, mode: showing.mode) {
+                self.loadFriendsBoard()
+                return
+            }
             self.friendsNode.reload(keepPage: true)
         }
 
@@ -2353,6 +2359,12 @@ final class GameScene: SKScene {
     private func handleFriendsTurn(by step: Int) {
         guard !Self.hitButton, friendsNode.turnPage(by: step) else {
             return
+        }
+
+        // A board left open past midnight shows LOADING: fetch the new day.
+        if let board = friendsNode.boardShowing,
+           !FriendsStore.boardIsCurrent(board.scope, mode: board.mode) {
+            loadFriendsBoard()
         }
 
         playSound(swooshSound)

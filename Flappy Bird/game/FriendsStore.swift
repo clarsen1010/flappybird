@@ -313,6 +313,14 @@ enum FriendsStore {
         return (board.top, board.you, board.youRankKnown, fetched?.state ?? .loading)
     }
 
+    /// False once the day, week or month the board was fetched for is
+    /// over (or it was never fetched): it then shows LOADING until asked
+    /// for again.
+    static func boardIsCurrent(_ scope: BoardScope, mode: GameMode = .normal, now: Date = Date()) -> Bool {
+        let (id, scope) = boardID(scope, mode)
+        return boards[id]?.key == boardKey(scope, now: now)
+    }
+
     /// Fetches one board. A board that fails says so on its own: the
     /// friends lists and the other boards are untouched. Does nothing,
     /// and never calls back, while that board is already being fetched.
