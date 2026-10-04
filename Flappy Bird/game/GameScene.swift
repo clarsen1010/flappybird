@@ -1423,9 +1423,11 @@ final class GameScene: SKScene {
             && !isGameOver
     }
 
-    /// The panel on screen, if any.
+    /// The panel on screen, if any. Looks only at what is on screen: naming
+    /// the lazy panels would build them all on the first tap of a session,
+    /// which is the tap that starts a round (up to ~9 ms).
     private var openPanel: SKNode? {
-        [settingsNode, bestRunsNode, friendsNode].first { $0.parent != nil }
+        children.first { $0 is SettingsPanel || $0 is BestRunsPanel || $0 is FriendsPanel }
     }
 
     /// A round in flight: started, not dead, not paused.
