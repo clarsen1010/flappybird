@@ -398,6 +398,27 @@ final class GameScene: SKScene {
 
     // MARK: Static Buttons
 
+    /// The word under a menu button. It carries the button's name, so a
+    /// tap on the word presses the button.
+    private static func caption(_ text: String, button name: String) -> SKNode {
+        let node = SKNode()
+        node.position = CGPoint(x: 0, y: -27)
+
+        for (z, (color, offset)) in [(PanelButton.textColor, CGPoint(x: 0, y: -1)), (UIColor.white, .zero)].enumerated() {
+            node.addChild(SKLabelNode(fontNamed: "KongtextRegular").then {
+                $0.name = name
+                $0.text = text
+                $0.fontSize = 8
+                $0.fontColor = color
+                $0.verticalAlignmentMode = .center
+                $0.position = offset
+                $0.zPosition = CGFloat(z + 1)
+            })
+        }
+
+        return node
+    }
+
     private static var settingsButton =
         SKSpriteNode(
             texture: settingsButtonTexture.then {
@@ -406,6 +427,7 @@ final class GameScene: SKScene {
         ).then {
             $0.name = "settings"
             $0.setScale(1.2)
+            $0.addChild(caption("SETTINGS", button: "settings"))
         }
 
     /// Taps resolve to the deepest node, so each icon carries its
@@ -431,6 +453,7 @@ final class GameScene: SKScene {
             $0.name = "birdPicker"
             $0.setScale(1.2)
             $0.addChild(birdPickerIcon)
+            $0.addChild(caption("BIRD", button: "birdPicker"))
         }
 
     private static var bestRunsButton =
@@ -441,6 +464,7 @@ final class GameScene: SKScene {
         ).then {
             $0.name = "bestRuns"
             $0.setScale(1.2)
+            $0.addChild(caption("STATS", button: "bestRuns"))
             $0.addChild(
                 SKSpriteNode(
                     texture: Assets.shared.sprites.textureNamed("charts-podium").then {
@@ -463,6 +487,7 @@ final class GameScene: SKScene {
         ).then { button in
             button.name = "friends"
             button.setScale(1.2)
+            button.addChild(caption("FRIENDS", button: "friends"))
 
             for (color, x, facing) in [("red", CGFloat(-11), CGFloat(1)), ("yellow", 11, -1)] {
                 button.addChild(
