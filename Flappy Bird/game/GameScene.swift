@@ -4042,7 +4042,10 @@ private extension GameScene {
 
     /// ~0.25 s shake on death, back to exactly where the camera started.
     func shakeScreen() {
-        let home = shakeCamera.position
+        // The centre, not where the camera is now: a shake that starts while
+        // another is ending (the explosion's second jolt) would otherwise keep
+        // the last bit of offset for good.
+        let home = CGPoint(x: frame.midX, y: frame.midY)
         let offsets: [CGFloat] = [8, -7, 6, -5, 3, -2]
 
         shakeCamera.removeAction(forKey: "shake")
