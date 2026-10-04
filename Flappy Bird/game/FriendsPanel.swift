@@ -3,9 +3,9 @@
 //  FlappyBird
 //
 //  Friends leaderboard: the people you added (best today, best ever, when
-//  they last played), the people who added you (tap to add them back), then
-//  the top of everyone. Same frame and arrows as the
-//  Best Runs panel: the right arrow flips pages, the left arrow closes.
+//  they last played), the top of everyone, and the people who added you
+//  (tap to add them back). The words on the top row are tabs. Under the
+//  panel, BACK closes it and the arrows turn the pages of a long list.
 //
 import Foundation
 import SpriteKit
@@ -13,7 +13,7 @@ import SpriteKit
 class FriendsPanel: SKNode {
 
     private enum Layout {
-        static let rowCount = 7 // title, column header, five players
+        static let rowCount = 8 // tabs, column header, five players, a spare row
         static let playersPerPage = 5
 
         static let slotX: CGFloat = -104 // left edge of "+ ADD FRIEND"
@@ -26,14 +26,15 @@ class FriendsPanel: SKNode {
         static let ownRowColor = UIColor(red: 197 / 255, green: 194 / 255, blue: 141 / 255, alpha: 1)
     }
 
-    private enum List {
-        case friends, addedYou, everyone
+    private enum List: CaseIterable {
+        case friends, everyone, addedYou
 
-        var title: String {
+        /// The tab's touch name.
+        var tabName: String {
             switch self {
-            case .friends: return "FRIENDS"
-            case .addedYou: return "ADDED YOU"
-            case .everyone: return "EVERYONE"
+            case .friends: return "tabFriends"
+            case .everyone: return "tabEveryone"
+            case .addedYou: return "tabAdded"
             }
         }
     }
@@ -50,25 +51,40 @@ class FriendsPanel: SKNode {
     private let titleNode = SKNode()
     private let rowsNode = SKNode()
 
-    lazy var backButton = SKSpriteNode(texture: SKTexture(imageNamed: "back-button").then { $0.filteringMode = .nearest }).then {
-        $0.position = CGPoint(x: -92, y: rowCenterY(0))
-        $0.zPosition = 1
-    }
+    private var pageCount = 1
 
-    lazy var nextButton = SKSpriteNode(texture: SKTexture(imageNamed: "back-button").then { $0.filteringMode = .nearest }).then {
-        $0.position = CGPoint(x: 92, y: rowCenterY(0))
-        $0.xScale = -1
-        $0.zPosition = 1
+    let closeButton = PanelButton(name: "panelBack", text: "BACK")
+
+    // Under the panel, either side of BACK. Each is there only while its
+    // page exists: the sprite hides and the touch box loses its name.
+    private let prevArrow = FriendsPanel.arrow(mirrored: false)
+    private let nextArrow = FriendsPanel.arrow(mirrored: true)
+    private lazy var prevTouchBox = touchBox("friendsPrev", at: .zero, size: CGSize(width: 44, height: 44))
+    private lazy var nextTouchBox = touchBox("friendsNext", at: .zero, size: CGSize(width: 44, height: 44))
+
+    private static func arrow(mirrored: Bool) -> SKSpriteNode {
+        SKSpriteNode(texture: SKTexture(imageNamed: "back-button").then { $0.filteringMode = .nearest }).then {
+            $0.xScale = mirrored ? -1 : 1
+            $0.zPosition = 1
+        }
     }
 
     override init() {
         super.init()
 
         PanelArt.background(rows: Layout.rowCount).forEach(addChild)
-        addChild(backButton)
-        addChild(touchBox("friendsBack", at: backButton.position, size: CGSize(width: 30, height: 30)))
-        addChild(nextButton)
-        addChild(touchBox("friendsNext", at: nextButton.position, size: CGSize(width: 30, height: 30)))
+
+        let barY = PanelArt.closeButtonY(rows: Layout.rowCount, reference: Layout.rowCount)
+        closeButton.position = CGPoint(x: 0, y: barY)
+        addChild(closeButton)
+
+        for (arrow, box, x) in [(prevArrow, prevTouchBox, CGFloat(-92)), (nextArrow, nextTouchBox, 92)] {
+            arrow.position = CGPoint(x: x, y: barY)
+            box.position = arrow.position
+            addChild(arrow)
+            addChild(box)
+        }
+
         addChild(titleNode)
         addChild(rowsNode)
 
@@ -89,9 +105,26 @@ class FriendsPanel: SKNode {
         showPage()
     }
 
-    /// After the last EVERYONE page comes the first FRIENDS page again.
-    func nextPage() {
-        showPage(advance: true)
+    /// A tap on one of the tab words.
+    func select(tab name: String) {
+        guard let tapped = List.allCases.first(where: { $0.tabName == name }), tapped != list else {
+            return
+        }
+        list = tapped
+        listPage = 0
+        showPage()
+    }
+
+    /// The arrows: one page back or on within the list showing. False when
+    /// there is no such page.
+    @discardableResult
+    func turnPage(by step: Int) -> Bool {
+        guard (0 ..< pageCount).contains(listPage + step) else {
+            return false
+        }
+        listPage += step
+        showPage()
+        return true
     }
 
     // MARK: Pages
@@ -123,65 +156,46 @@ class FriendsPanel: SKNode {
         }
     }
 
-    private func showPage(advance: Bool = false) {
+    private func showPage() {
         let added = addedYouEntries()
 
-        // ADDED YOU only exists while someone is waiting on it; the other
-        // two always have a page.
-        let order: [List] = added.isEmpty ? [.friends, .everyone] : [.friends, .addedYou, .everyone]
-        let listPages: [List: [[Entry]]] = [
-            .friends: pages(friendEntries()),
-            .addedYou: pages(added),
-            .everyone: pages(everyoneEntries()),
-        ]
-
-        if !order.contains(list) {
-            // The last person waiting was added back: they are on FRIENDS now.
-            list = .friends
-            listPage = 0
-        } else if advance {
-            if listPage + 1 < listPages[list]?.count ?? 0 {
-                listPage += 1
-            } else {
-                let next = (order.firstIndex(of: list) ?? 0) + 1
-                list = order[next % order.count]
-                listPage = 0
-            }
+        let entries: [Entry]
+        switch list {
+        case .friends: entries = friendEntries()
+        case .everyone: entries = everyoneEntries()
+        case .addedYou: entries = added
         }
 
-        let group = listPages[list] ?? [[]]
+        let group = pages(entries)
         // A redraw after the list shrank stays on its nearest page.
         listPage = min(listPage, group.count - 1)
-        let page = (list: list, index: listPage, count: group.count, entries: group[listPage])
+        pageCount = group.count
 
-        var title = page.list.title
-        if page.count > 1 {
-            title += " \(page.index + 1)/\(page.count)"
+        for (arrow, box, name, shown) in [
+            (prevArrow, prevTouchBox, "friendsPrev", listPage > 0),
+            (nextArrow, nextTouchBox, "friendsNext", listPage + 1 < pageCount),
+        ] {
+            arrow.isHidden = !shown
+            box.name = shown ? name : nil
         }
 
+        let waiting = added.isEmpty ? "" : " \(added.count > 9 ? "9+" : "\(added.count)")"
+        let titles: [List: String] = [.friends: "FRIENDS", .everyone: "EVERYONE", .addedYou: "ADDED" + waiting]
+
         titleNode.removeAllChildren()
-        titleNode.addChild(PanelArt.label(title, size: 12, x: 0, y: rowCenterY(0)))
+        PanelArt.tabs(
+            List.allCases.map { (title: titles[$0] ?? "", name: $0.tabName, selected: $0 == list) },
+            y: rowCenterY(0)
+        ).forEach(titleNode.addChild)
         rowsNode.removeAllChildren()
         addBackRows = []
 
-        showHeader(page.list)
+        showHeader(list, isEmpty: entries.isEmpty)
 
-        switch page.list {
-        case .friends:
-            showFriends(page.entries)
-
-            // Someone added you: point at the page that says who.
-            if !added.isEmpty {
-                rowsNode.addChild(SKSpriteNode(texture: Assets.shared.sprites.textureNamed("new").then { $0.filteringMode = .nearest }).then {
-                    $0.position = CGPoint(x: nextButton.position.x - 4, y: rowCenterY(0) - 18)
-                    $0.setScale(0.75)
-                    $0.zPosition = 1
-                })
-            }
-        case .addedYou:
-            showAddedYou(page.entries)
-        case .everyone:
-            showEveryone(page.entries)
+        switch list {
+        case .friends: showFriends(group[listPage])
+        case .everyone: showEveryone(group[listPage])
+        case .addedYou: showAddedYou(group[listPage])
         }
     }
 
@@ -197,7 +211,7 @@ class FriendsPanel: SKNode {
         }
     }
 
-    private func showHeader(_ list: List) {
+    private func showHeader(_ list: List, isEmpty: Bool) {
         let y = rowCenterY(1)
 
         if let statusText {
@@ -205,7 +219,7 @@ class FriendsPanel: SKNode {
         } else if list == .friends {
             rowsNode.addChild(PanelArt.label("+ ADD FRIEND", size: 8, x: Layout.slotX, y: y, align: .left))
             rowsNode.addChild(touchBox("friendsAdd", at: CGPoint(x: Layout.slotX + 48, y: y), size: CGSize(width: 104, height: 28)))
-        } else if list == .addedYou {
+        } else if list == .addedYou, !isEmpty {
             rowsNode.addChild(PanelArt.label("TAP TO ADD BACK", size: 8, x: Layout.slotX, y: y, align: .left))
         }
 
@@ -257,6 +271,12 @@ class FriendsPanel: SKNode {
     }
 
     private func showAddedYou(_ entries: [Entry]) {
+        if entries.isEmpty, statusText == nil {
+            rowsNode.addChild(PanelArt.label("NOBODY NEW", size: 10, x: 0, y: rowCenterY(3)))
+            rowsNode.addChild(PanelArt.label("PLAYERS WHO ADD YOU", size: 8, x: 0, y: rowCenterY(4) + 6))
+            rowsNode.addChild(PanelArt.label("SHOW UP HERE", size: 8, x: 0, y: rowCenterY(4) - 7))
+        }
+
         for (index, entry) in entries.enumerated() {
             let y = rowCenterY(index + 2)
 

@@ -636,33 +636,10 @@ final class GameScene: SKScene {
     private func updateSettingsUI() {
         settingsNode.showName(FriendsStore.myName)
 
-        settingsNode.soundToggle.position = CGPoint(
-            x: playSounds
-                ? SettingsPositions.toggleOnX
-                : SettingsPositions.toggleOffX,
-            y: SettingsPositions.soundToggleY
-        )
-
-        settingsNode.hapticsToggle.position = CGPoint(
-            x: haptics
-                ? SettingsPositions.toggleOnX
-                : SettingsPositions.toggleOffX,
-            y: SettingsPositions.hapticsToggleY
-        )
-
-        settingsNode.darkModeToggle.position = CGPoint(
-            x: darkMode
-                ? SettingsPositions.toggleOnX
-                : SettingsPositions.toggleOffX,
-            y: SettingsPositions.darkModeToggleY
-        )
-
-        settingsNode.logsToggle.position = CGPoint(
-            x: logsOn
-                ? SettingsPositions.toggleOnX
-                : SettingsPositions.toggleOffX,
-            y: SettingsPositions.logsToggleY
-        )
+        settingsNode.setSwitch(.sound, on: playSounds, animated: false)
+        settingsNode.setSwitch(.haptics, on: haptics, animated: false)
+        settingsNode.setSwitch(.darkMode, on: darkMode, animated: false)
+        settingsNode.setSwitch(.logs, on: logsOn, animated: false)
     }
 
     // MARK: Node Creation
@@ -783,16 +760,25 @@ final class GameScene: SKScene {
         }
     }
 
+    /// Panels hang from one top edge, just under the title: a 7-row panel
+    /// (Best Runs) is centred 15 above the middle of the screen, and a
+    /// taller or shorter one moves by half the difference.
+    private func panelPosition(height panelHeight: CGFloat) -> CGPoint {
+        CGPoint(
+            x: width / 2,
+            y: height / 2 + 15 + (PanelArt.height(rows: 7) - panelHeight) * 1.2 / 2
+        )
+    }
+
     private func makeSettingsNode() -> SettingsPanel {
-        SettingsPanel().then {
+        // The play-log switch is for testers. A player who already has
+        // logs on keeps the row, so it can be turned off.
+        let showsLogs = GameLog.defaultOn || UserDefaults.standard.bool(forKey: GameLog.settingKey)
+
+        return SettingsPanel(showsLogs: showsLogs).then {
             $0.setScale(1.2)
             $0.zPosition = GameZPosition.resultText + 4
-            // 22 lower than before: the panel grew a row (LOGS) and its top
-            // edge stays where it was, clear of the title.
-            $0.position = CGPoint(
-                x: width / 2,
-                y: height / 2 - 7
-            )
+            $0.position = panelPosition(height: $0.panelHeight)
         }
     }
 
@@ -800,10 +786,7 @@ final class GameScene: SKScene {
         BestRunsPanel().then {
             $0.setScale(1.2)
             $0.zPosition = GameZPosition.resultText + 4
-            $0.position = CGPoint(
-                x: width / 2,
-                y: height / 2 + 15
-            )
+            $0.position = panelPosition(height: PanelArt.height(rows: 7))
         }
     }
 
@@ -811,10 +794,7 @@ final class GameScene: SKScene {
         FriendsPanel().then {
             $0.setScale(1.2)
             $0.zPosition = GameZPosition.resultText + 4
-            $0.position = CGPoint(
-                x: width / 2,
-                y: height / 2 + 15
-            )
+            $0.position = panelPosition(height: PanelArt.height(rows: 8))
         }
     }
 
@@ -1166,6 +1146,11 @@ final class GameScene: SKScene {
             target: tapTarget(nodeName)
         )
 
+        // Framed buttons look pushed in for a moment.
+        if !Self.hitButton, let button = atPoint(location).parent as? PanelButton {
+            button.press()
+        }
+
         switch nodeName {
         case "play":
             handlePlayTap()
@@ -1185,20 +1170,20 @@ final class GameScene: SKScene {
         case "bestRuns":
             handleBestRunsTap()
 
-        case "bestRunsBack":
-            handleBestRunsBack()
+        case "panelBack":
+            handlePanelBack()
 
-        case "bestRunsNext":
-            handleBestRunsNext()
+        case let name? where name.hasPrefix("tab"):
+            handleTabTap(name)
 
         case "friends":
             handleFriendsTap()
 
-        case "friendsBack":
-            handleFriendsBack()
+        case "friendsPrev":
+            handleFriendsTurn(by: -1)
 
         case "friendsNext":
-            handleFriendsNext()
+            handleFriendsTurn(by: 1)
 
         case "friendsAdd":
             handleFriendsAdd()
@@ -1224,10 +1209,16 @@ final class GameScene: SKScene {
         case "toggleLogs":
             handleLogsToggle()
 
-        case "settingsBack":
-            handleSettingsBack()
-
         default:
+            // A panel is open: a tap outside it closes it, a tap on it
+            // (a label, an empty row) does nothing.
+            if let panel = openPanel {
+                if !panel.calculateAccumulatedFrame().contains(location) {
+                    handlePanelBack()
+                }
+                return
+            }
+
             // On the menu, tapping the bird switches birds like the picker.
             if isOnMenu, hypot(location.x - bird.position.x, location.y - bird.position.y) < 45 {
                 handleBirdPickerTap()
@@ -1245,6 +1236,11 @@ final class GameScene: SKScene {
             && !isGameOver
     }
 
+    /// The panel on screen, if any.
+    private var openPanel: SKNode? {
+        [settingsNode, bestRunsNode, friendsNode].first { $0.parent != nil }
+    }
+
     /// A round in flight: started, not dead, not paused.
     private var isRoundLive: Bool {
         !isWaitingToStart && !isGameOver && !isPausedByUser
@@ -1255,15 +1251,19 @@ final class GameScene: SKScene {
     private func tapTarget(_ nodeName: String?) -> String {
         switch nodeName {
         case "play", "pause", "settings", "birdPicker", "bestRuns",
-             "bestRunsBack", "bestRunsNext", "settingsBack", "friends",
-             "friendsBack", "friendsNext", "friendsAdd", "friendsMe", "editName",
-             "friendsAddBack0", "friendsAddBack1", "friendsAddBack2", "friendsAddBack3", "friendsAddBack4":
+             "panelBack", "tabRuns", "tabStats", "tabGoals", "friends",
+             "tabFriends", "tabEveryone", "tabAdded",
+             "friendsPrev", "friendsNext", "friendsAdd", "friendsMe", "editName",
+             "friendsAddBack0", "friendsAddBack1", "friendsAddBack2", "friendsAddBack3", "friendsAddBack4",
+             "toggleSounds", "toggleHaptics", "toggleDarkMode", "toggleLogs":
             // These ignore taps while the button lock is on.
             return (nodeName ?? "?") + (Self.hitButton ? " (locked, ignored)" : "")
-        case "resume", "toggleSounds", "toggleHaptics", "toggleDarkMode",
-             "toggleLogs":
+        case "resume":
             return nodeName ?? "?"
         default:
+            if openPanel != nil {
+                return Self.hitButton ? "nothing (panel locked)" : "panel (a tap outside it closes it)"
+            }
             if isPausedByUser { return "nothing (paused)" }
             if isWaitingToStart {
                 return CACurrentMediaTime() < startAllowedAt ? "nothing (fade not finished)" : "start"
@@ -1629,16 +1629,17 @@ final class GameScene: SKScene {
         unlockButtons()
     }
 
-    private func handleSettingsBack() {
-        guard !Self.hitButton else {
+    // MARK: Leaving a Panel
+
+    /// BACK under a panel, or a tap outside it.
+    private func handlePanelBack() {
+        guard !Self.hitButton, let panel = openPanel else {
             return
         }
 
         Self.hitButton = true
 
         playSound(swooshSound)
-
-        settingsNode.backButton.setScale(0.8)
 
         run(
             SKAction.sequence([
@@ -1650,16 +1651,43 @@ final class GameScene: SKScene {
                         self.impactFeedback.impactOccurred()
                     }
                 },
-                .run {
-                    self.settingsNode.backButton.setScale(1)
-                },
                 .wait(forDuration: 0.1)
             ]),
             completion: { [weak self] in
-                self?.hideSettings()
-                self?.unlockButtons()
+                guard let self else { return }
+
+                if panel === self.settingsNode {
+                    self.hideSettings()
+                } else if panel === self.bestRunsNode {
+                    self.hideBestRuns()
+                } else {
+                    self.hideFriends()
+                }
+
+                // Longer than after other buttons: Play comes back right
+                // where BACK was, under a thumb that may tap twice.
+                self.unlockButtons(after: 0.4)
             }
         )
+    }
+
+    /// One of the words on a panel's top row.
+    private func handleTabTap(_ name: String) {
+        guard !Self.hitButton else {
+            return
+        }
+
+        playSound(swooshSound)
+
+        if haptics {
+            impactFeedback.impactOccurred()
+        }
+
+        if bestRunsNode.parent != nil {
+            bestRunsNode.select(tab: name)
+        } else if friendsNode.parent != nil {
+            friendsNode.select(tab: name)
+        }
     }
 
     private func hideSettings() {
@@ -1856,52 +1884,6 @@ final class GameScene: SKScene {
         unlockButtons()
     }
 
-    private func handleBestRunsBack() {
-        guard !Self.hitButton else {
-            return
-        }
-
-        Self.hitButton = true
-
-        playSound(swooshSound)
-
-        bestRunsNode.backButton.setScale(0.8)
-
-        run(
-            SKAction.sequence([
-                .wait(forDuration: 0.1),
-                .run { [weak self] in
-                    guard let self else { return }
-
-                    if self.haptics {
-                        self.impactFeedback.impactOccurred()
-                    }
-
-                    self.bestRunsNode.backButton.setScale(1)
-                },
-                .wait(forDuration: 0.1)
-            ]),
-            completion: { [weak self] in
-                self?.hideBestRuns()
-                self?.unlockButtons()
-            }
-        )
-    }
-
-    private func handleBestRunsNext() {
-        guard !Self.hitButton else {
-            return
-        }
-
-        playSound(swooshSound)
-
-        if haptics {
-            impactFeedback.impactOccurred()
-        }
-
-        bestRunsNode.nextPage()
-    }
-
     private func hideBestRuns() {
         scaleTwice(
             node: bestRunsNode,
@@ -1992,40 +1974,9 @@ final class GameScene: SKScene {
         friendsNode.reload(keepPage: true)
     }
 
-    private func handleFriendsBack() {
-        guard !Self.hitButton else {
-            return
-        }
-
-        Self.hitButton = true
-
-        playSound(swooshSound)
-
-        friendsNode.backButton.setScale(0.8)
-
-        run(
-            SKAction.sequence([
-                .wait(forDuration: 0.1),
-                .run { [weak self] in
-                    guard let self else { return }
-
-                    if self.haptics {
-                        self.impactFeedback.impactOccurred()
-                    }
-
-                    self.friendsNode.backButton.setScale(1)
-                },
-                .wait(forDuration: 0.1)
-            ]),
-            completion: { [weak self] in
-                self?.hideFriends()
-                self?.unlockButtons()
-            }
-        )
-    }
-
-    private func handleFriendsNext() {
-        guard !Self.hitButton else {
+    /// The arrows under the panel: the pages of the list showing.
+    private func handleFriendsTurn(by step: Int) {
+        guard !Self.hitButton, friendsNode.turnPage(by: step) else {
             return
         }
 
@@ -2034,8 +1985,6 @@ final class GameScene: SKScene {
         if haptics {
             impactFeedback.impactOccurred()
         }
-
-        friendsNode.nextPage()
     }
 
     private func hideFriends() {
@@ -2312,10 +2261,10 @@ final class GameScene: SKScene {
         })
     }
 
-    private func unlockButtons() {
+    private func unlockButtons(after delay: TimeInterval = 0.2) {
         run(
             .sequence([
-                .wait(forDuration: 0.2),
+                .wait(forDuration: delay),
                 .run {
                     Self.hitButton = false
                 }
@@ -2325,55 +2274,32 @@ final class GameScene: SKScene {
 
     // MARK: Settings Toggles
 
+    // The switches honour the button lock: their rows are wide, and a
+    // second tap on the Settings button would otherwise land on one as
+    // the panel appears.
+
     private func toggle(
         value: inout Bool,
         key: String,
-        control: SKNode,
-        y: CGFloat
+        item: SettingsPanel.Switch
     ) {
         value.toggle()
 
         saveSetting(value, key: key)
 
-        let targetX = value
-            ? SettingsPositions.toggleOnX
-            : SettingsPositions.toggleOffX
-
-        let overshootX = value
-            ? targetX - 6
-            : targetX + 6
-
-        control.run(
-            .sequence([
-                .move(
-                    to: CGPoint(
-                        x: overshootX,
-                        y: y
-                    ),
-                    duration: 0.08
-                ),
-                .move(
-                    to: CGPoint(
-                        x: targetX,
-                        y: y
-                    ),
-                    duration: Constants.toggleAnimationDuration
-                )
-            ])
-        )
+        settingsNode.setSwitch(item, on: value, animated: true)
     }
 
     private func handleSoundToggle() {
+        guard !Self.hitButton else {
+            return
+        }
+
         if haptics {
             impactFeedback.impactOccurred()
         }
 
-        toggle(
-            value: &playSounds,
-            key: "playSounds",
-            control: settingsNode.soundToggle,
-            y: SettingsPositions.soundToggleY
-        )
+        toggle(value: &playSounds, key: "playSounds", item: .sound)
 
         // playSound() is a no-op while sound is off, so this only swooshes
         // when sound was just turned on.
@@ -2381,14 +2307,13 @@ final class GameScene: SKScene {
     }
 
     private func handleHapticsToggle() {
+        guard !Self.hitButton else {
+            return
+        }
+
         playSound(swooshSound)
 
-        toggle(
-            value: &haptics,
-            key: "haptics",
-            control: settingsNode.hapticsToggle,
-            y: SettingsPositions.hapticsToggleY
-        )
+        toggle(value: &haptics, key: "haptics", item: .haptics)
 
         if haptics {
             impactFeedback.impactOccurred()
@@ -2396,35 +2321,33 @@ final class GameScene: SKScene {
     }
 
     private func handleDarkModeToggle() {
+        guard !Self.hitButton else {
+            return
+        }
+
         playSound(swooshSound)
 
         if haptics {
             impactFeedback.impactOccurred()
         }
 
-        toggle(
-            value: &darkMode,
-            key: "darkMode",
-            control: settingsNode.darkModeToggle,
-            y: SettingsPositions.darkModeToggleY
-        )
+        toggle(value: &darkMode, key: "darkMode", item: .darkMode)
 
         refreshTheme()
     }
 
     private func handleLogsToggle() {
+        guard !Self.hitButton else {
+            return
+        }
+
         playSound(swooshSound)
 
         if haptics {
             impactFeedback.impactOccurred()
         }
 
-        toggle(
-            value: &logsOn,
-            key: GameLog.settingKey,
-            control: settingsNode.logsToggle,
-            y: SettingsPositions.logsToggleY
-        )
+        toggle(value: &logsOn, key: GameLog.settingKey, item: .logs)
 
         GameLog.setEnabled(logsOn)
     }

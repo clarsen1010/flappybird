@@ -63,8 +63,8 @@ enum BestRuns {
     }
 }
 
-/// Best Runs, Stats and Goals pages in one panel. The right arrow on the
-/// title row flips pages; the left arrow closes the panel.
+/// Best Runs, Stats and Goals pages in one panel. The words on the top row
+/// are tabs; BACK under the panel closes it.
 class BestRunsPanel: SKNode {
 
     private enum Layout {
@@ -81,9 +81,18 @@ class BestRunsPanel: SKNode {
 
         var title: String {
             switch self {
-            case .runs: return "BEST RUNS"
+            case .runs: return "RUNS"
             case .stats: return "STATS"
             case .goals: return "GOALS"
+            }
+        }
+
+        /// The tab's touch name.
+        var tabName: String {
+            switch self {
+            case .runs: return "tabRuns"
+            case .stats: return "tabStats"
+            case .goals: return "tabGoals"
             }
         }
     }
@@ -124,41 +133,13 @@ class BestRunsPanel: SKNode {
     private let titleNode = SKNode()
     private let rowsNode = SKNode()
 
-    lazy var backButton = SKSpriteNode(texture: SKTexture(imageNamed: "back-button").then { $0.filteringMode = .nearest }).then {
-        $0.position = CGPoint(x: -92, y: rowCenterY(0))
-        $0.zPosition = 1
-    }
-
-    lazy var backButtonTouchBox = SKSpriteNode().then {
-        $0.name = "bestRunsBack"
-        $0.zPosition = 2
-        $0.position = backButton.position
-        $0.color = UIColor.clear
-        $0.size = CGSize(width: 30, height: 30)
-    }
-
-    lazy var nextButton = SKSpriteNode(texture: SKTexture(imageNamed: "back-button").then { $0.filteringMode = .nearest }).then {
-        $0.position = CGPoint(x: 92, y: rowCenterY(0))
-        $0.xScale = -1
-        $0.zPosition = 1
-    }
-
-    lazy var nextButtonTouchBox = SKSpriteNode().then {
-        $0.name = "bestRunsNext"
-        $0.zPosition = 2
-        $0.position = nextButton.position
-        $0.color = UIColor.clear
-        $0.size = CGSize(width: 30, height: 30)
-    }
+    let closeButton = PanelButton(name: "panelBack", text: "BACK")
 
     override init() {
         super.init()
 
         addChild(backgroundNode)
-        addChild(backButton)
-        addChild(backButtonTouchBox)
-        addChild(nextButton)
-        addChild(nextButtonTouchBox)
+        addChild(closeButton)
         addChild(titleNode)
         addChild(rowsNode)
 
@@ -175,14 +156,21 @@ class BestRunsPanel: SKNode {
         showPage()
     }
 
-    func nextPage() {
-        page = Page(rawValue: (page.rawValue + 1) % Page.allCases.count) ?? .runs
+    /// A tap on one of the tab words.
+    func select(tab name: String) {
+        guard let tapped = Page.allCases.first(where: { $0.tabName == name }), tapped != page else {
+            return
+        }
+        page = tapped
         showPage()
     }
 
     private func showPage() {
         titleNode.removeAllChildren()
-        titleNode.addChild(makeLabel(page.title, size: 12, x: 0, y: rowCenterY(0)))
+        PanelArt.tabs(
+            Page.allCases.map { (title: $0.title, name: $0.tabName, selected: $0 == page) },
+            y: rowCenterY(0)
+        ).forEach(titleNode.addChild)
         rowsNode.removeAllChildren()
 
         let legends = page == .goals && Achievements.legendsUnlocked
@@ -310,12 +298,13 @@ class BestRunsPanel: SKNode {
         PanelArt.rowCenterY(row, rows: Layout.rowCount)
     }
 
-    /// The panel with `rows` rows. Extra rows hang below: the top edge, the
-    /// title and the arrows stay where they are.
+    /// The panel with `rows` rows. Extra rows hang below: the top edge and
+    /// the tabs stay where they are, and BACK follows the bottom edge.
     private func showBackground(rows: Int) {
         backgroundNode.removeAllChildren()
         backgroundNode.position.y = (PanelArt.height(rows: Layout.rowCount) - PanelArt.height(rows: rows)) / 2
         PanelArt.background(rows: rows).forEach(backgroundNode.addChild)
+        closeButton.position.y = PanelArt.closeButtonY(rows: rows, reference: Layout.rowCount)
     }
 
     private func makeLabel(_ text: String, size: CGFloat, x: CGFloat, y: CGFloat) -> SKNode {
@@ -327,8 +316,8 @@ class BestRunsPanel: SKNode {
     }
 }
 
-/// The sliced panel and its two label styles, shared by the Best Runs and
-/// Friends panels. Rows are 32 tall; row 0 is the title row.
+/// The sliced panel, its label styles and its tab row, shared by the Best
+/// Runs, Friends and Settings panels. Rows are 32 tall; row 0 is the top row.
 enum PanelArt {
     static let topHeight: CGFloat = 10
     static let rowHeight: CGFloat = 32
@@ -343,6 +332,52 @@ enum PanelArt {
 
     static func rowCenterY(_ row: Int, rows: Int) -> CGFloat {
         height(rows: rows) / 2 - topHeight - rowHeight * (CGFloat(row) + 0.5)
+    }
+
+    /// Centre of the BACK button: 6 under the bottom edge of a panel with
+    /// `rows` rows whose top edge is where a `reference`-row panel's is.
+    static func closeButtonY(rows: Int, reference: Int) -> CGFloat {
+        height(rows: reference) / 2 - height(rows: rows) - 24
+    }
+
+    static let tabColor = PanelButton.textColor
+    static let panelColor = UIColor(red: 221 / 255, green: 217 / 255, blue: 156 / 255, alpha: 1)
+
+    /// A row of tab words in equal slots across the panel. The one showing
+    /// sits on a dark band; each slot is a touch box with the tab's name.
+    static func tabs(_ tabs: [(title: String, name: String, selected: Bool)], y: CGFloat, size: CGFloat = 8) -> [SKNode] {
+        let slot = 216 / CGFloat(tabs.count)
+
+        return tabs.enumerated().flatMap { index, tab -> [SKNode] in
+            let x = (CGFloat(index) - CGFloat(tabs.count - 1) / 2) * slot
+            var nodes: [SKNode] = []
+
+            if tab.selected {
+                nodes.append(SKSpriteNode(color: tabColor, size: CGSize(width: CGFloat(tab.title.count) * size + 8, height: 18)).then {
+                    $0.position = CGPoint(x: x, y: y)
+                    $0.zPosition = 0.5
+                })
+                nodes.append(SKLabelNode(fontNamed: "KongtextRegular").then {
+                    $0.text = tab.title
+                    $0.fontSize = size
+                    $0.fontColor = panelColor
+                    $0.verticalAlignmentMode = .center
+                    $0.position = CGPoint(x: x, y: y)
+                    $0.zPosition = 1
+                })
+            } else {
+                nodes.append(label(tab.title, size: size, x: x, y: y))
+            }
+
+            // Reaches up into the top border, and stops at the next row.
+            nodes.append(SKSpriteNode(color: .clear, size: CGSize(width: slot, height: 34)).then {
+                $0.name = tab.name
+                $0.position = CGPoint(x: x, y: y + 1)
+                $0.zPosition = 3
+            })
+
+            return nodes
+        }
     }
 
     static func background(rows: Int) -> [SKSpriteNode] {

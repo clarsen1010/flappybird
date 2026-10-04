@@ -8,148 +8,149 @@
 import Foundation
 import SpriteKit
 
-struct SettingsPositions {
-    static let toggleOnX: CGFloat = 68
-    static let toggleOffX: CGFloat = 46
-    
-    // Rows top to bottom, 36 apart (44 before DARK MODE): NAME, SOUND,
-    // HAPTICS, DARK MODE, LOGS. The labels are part of the panel art.
-    static let nameRowY: CGFloat = 78
-    static let soundToggleY: CGFloat = 42
-    static let hapticsToggleY: CGFloat = 6
-    static let darkModeToggleY: CGFloat = -38
-    static let logsToggleY: CGFloat = -74
-    
-    static let backButtonX: CGFloat = -92
-    static let backButtonY: CGFloat = 103
-}
+/// Settings, built from the same sliced panel and labels as the Best Runs
+/// and Friends panels: a title row, the player's name, then one row per
+/// switch. BACK under the panel closes it.
+class SettingsPanel: SKNode {
 
-class SettingsPanel: SKSpriteNode {
-    
-    convenience init() {
-        self.init(texture: SKTexture(imageNamed: "settings-panel").then { $0.filteringMode = .nearest })
-        addChild(backButton)
-        addChild(backButtonTouchBox)
-        
-        addChild(versionLabel)
-        
-        addChild(nameValue)
+    enum Switch: CaseIterable {
+        case sound, haptics, darkMode, logs
+
+        var title: String {
+            switch self {
+            case .sound: return "SOUND"
+            case .haptics: return "HAPTICS"
+            case .darkMode: return "DARK MODE"
+            case .logs: return "LOGS"
+            }
+        }
+
+        var touchName: String {
+            switch self {
+            case .sound: return "toggleSounds"
+            case .haptics: return "toggleHaptics"
+            case .darkMode: return "toggleDarkMode"
+            case .logs: return "toggleLogs"
+            }
+        }
+    }
+
+    private enum Layout {
+        static let labelX: CGFloat = -72
+        static let slotX: CGFloat = 57
+        static let knobOnX: CGFloat = 68
+        static let knobOffX: CGFloat = 46
+        static let wordX: CGFloat = 80
+        static let nameX: CGFloat = 48
+        static let rowSize = CGSize(width: 222, height: 32)
+    }
+
+    private let switches: [Switch]
+    private let rowCount: Int
+    private var knobs: [Switch: SKSpriteNode] = [:]
+    private var words: [Switch: SKNode] = [:]
+
+    /// Panel height in its own units, for placing it on screen.
+    var panelHeight: CGFloat { PanelArt.height(rows: rowCount) }
+
+    let closeButton = PanelButton(name: "panelBack", text: "BACK")
+
+    /// The player's leaderboard name, boxed so it reads as something to tap.
+    let nameButton = PanelButton(name: "editName", text: "", textSize: 8, width: 104, height: 26, hit: CGSize(width: 104, height: 30))
+
+    /// The play-log switch is for testers: `showsLogs` is false for App
+    /// Store players, and the row is left out.
+    init(showsLogs: Bool) {
+        switches = Switch.allCases.filter { $0 != .logs || showsLogs }
+        rowCount = switches.count + 2 // title, NAME, the switches
+
+        super.init()
+
+        PanelArt.background(rows: rowCount).forEach(addChild)
+        addChild(PanelArt.label("SETTINGS", size: 12, x: 0, y: rowY(0)))
+
+        // install.sh --test stamps the build, so one carrying test code
+        // says so here. Store and TestFlight builds have no stamp.
+        if let stamp = Bundle.main.infoDictionary?["FBBuildStamp"] as? String, !stamp.isEmpty {
+            addChild(PanelArt.label(stamp, size: 8, x: 108, y: rowY(0), align: .right))
+        }
+
+        addChild(PanelArt.label("NAME", size: 10, x: Layout.labelX, y: rowY(1), align: .left))
+        nameButton.position = CGPoint(x: Layout.nameX, y: rowY(1))
         addChild(nameButton)
+        // The rest of the NAME row, under the button's own touch box.
+        addChild(touchBox("editName", y: rowY(1), z: 2.5))
 
-        addChild(soundToggle)
-        addChild(soundButton)
-        
-        addChild(hapticsToggle)
-        addChild(hapticsButton)
-        
-        addChild(darkModeToggle)
-        addChild(darkModeButton)
-        
-        addChild(logsToggle)
-        addChild(logsButton)
+        for (index, item) in switches.enumerated() {
+            let y = rowY(index + 2)
+
+            addChild(PanelArt.label(item.title, size: 10, x: Layout.labelX, y: y, align: .left))
+            addChild(SKSpriteNode(texture: SKTexture(imageNamed: "setting-toggle-background").then { $0.filteringMode = .nearest }).then {
+                $0.position = CGPoint(x: Layout.slotX, y: y)
+                $0.zPosition = 1
+            })
+
+            let knob = SKSpriteNode(texture: SKTexture(imageNamed: "toggle").then { $0.filteringMode = .nearest }).then {
+                $0.position = CGPoint(x: Layout.knobOnX, y: y)
+                $0.zPosition = 2
+            }
+            knobs[item] = knob
+            addChild(knob)
+
+            let word = SKNode()
+            words[item] = word
+            addChild(word)
+
+            // The whole row is the switch.
+            addChild(touchBox(item.touchName, y: y, z: 3))
+        }
+
+        closeButton.position = CGPoint(x: 0, y: PanelArt.closeButtonY(rows: rowCount, reference: rowCount))
+        addChild(closeButton)
     }
-    
-    lazy var versionLabel = MKOutlinedLabelNode(fontNamed: "KongtextRegular", fontSize: 12).then {
-        $0.name = "versionLabel"
-        $0.position = CGPoint(x: SettingsPositions.toggleOffX + (SettingsPositions.toggleOnX - SettingsPositions.toggleOffX) / 2, y: SettingsPositions.nameRowY + 20)
-        $0.zPosition = 3
-        $0.fontColor = UIColor.white
-        $0.borderColor = UIColor.black
-        $0.borderWidth = 1
-        $0.borderOffset = CGPoint(x: 0, y: 0)
-        // Shows the version (5.0.1, bumped for every phone install). install.sh --test sets
-        // FBBuildStamp to TEST so a build carrying test code is obvious.
-        let info = Bundle.main.infoDictionary
-        let version = info?["CFBundleShortVersionString"] as? String ?? ""
-        let stamp = info?["FBBuildStamp"] as? String ?? ""
-        $0.outlinedText = stamp.isEmpty ? version : stamp
+
+    required init?(coder aDecoder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
     }
-    
-    /// The player's leaderboard name, right of the NAME label.
-    private let nameValue = SKNode()
 
     func showName(_ name: String?) {
-        nameValue.removeAllChildren()
-        nameValue.addChild(PanelArt.label(
-            FriendsStore.isBusy ? "SAVING" : name ?? "TAP TO SET",
-            size: 8,
-            x: SettingsPositions.toggleOffX + (SettingsPositions.toggleOnX - SettingsPositions.toggleOffX) / 2,
-            y: SettingsPositions.nameRowY
-        ))
+        nameButton.text = FriendsStore.isBusy ? "SAVING" : name ?? "TAP TO SET"
     }
 
-    /// The whole NAME row; above the label layers so a tap on the name
-    /// itself lands here.
-    lazy var nameButton = SKSpriteNode().then {
-        $0.name = "editName"
-        $0.position = CGPoint(x: 20, y: SettingsPositions.nameRowY)
-        $0.zPosition = 3
-        $0.color = UIColor.clear
-        $0.size = CGSize(width: 180, height: 28)
+    /// Moves a switch's knob and rewrites its ON / OFF word. Rows that are
+    /// not showing (LOGS for App Store players) are ignored.
+    func setSwitch(_ item: Switch, on: Bool, animated: Bool) {
+        guard let knob = knobs[item], let word = words[item] else {
+            return
+        }
+
+        let y = knob.position.y
+        let targetX = on ? Layout.knobOnX : Layout.knobOffX
+
+        knob.removeAllActions()
+        if animated {
+            knob.run(.sequence([
+                .move(to: CGPoint(x: on ? targetX - 6 : targetX + 6, y: y), duration: 0.08),
+                .move(to: CGPoint(x: targetX, y: y), duration: 0.12),
+            ]))
+        } else {
+            knob.position.x = targetX
+        }
+
+        word.removeAllChildren()
+        word.addChild(PanelArt.label(on ? "ON" : "OFF", size: 8, x: Layout.wordX, y: y, align: .left))
+        word.alpha = on ? 1 : 0.55
     }
 
-    lazy var backButton = SKSpriteNode(texture: SKTexture(imageNamed: "back-button").then { $0.filteringMode = .nearest }).then {
-        $0.position = CGPoint(x: SettingsPositions.backButtonX, y: SettingsPositions.backButtonY)
-        $0.zPosition = 1
+    private func rowY(_ row: Int) -> CGFloat {
+        PanelArt.rowCenterY(row, rows: rowCount)
     }
-    
-    lazy var backButtonTouchBox = SKSpriteNode().then {
-        $0.name = "settingsBack"
-        $0.zPosition = 2
-        $0.position = CGPoint(x: SettingsPositions.backButtonX, y: SettingsPositions.backButtonY)
-        $0.color = UIColor.clear
-        $0.size = CGSize(width: 30, height: 30)
-    }
-    
-    lazy var soundToggle = SKSpriteNode(texture: SKTexture(imageNamed: "toggle").then { $0.filteringMode = .nearest }).then {
-        $0.position = CGPoint(x: SettingsPositions.toggleOnX, y: SettingsPositions.soundToggleY)
-        $0.zPosition = 2
-    }
-    
-    lazy var soundButton = SKSpriteNode().then {
-        $0.name = "toggleSounds"
-        $0.position = CGPoint(x: SettingsPositions.toggleOffX + (SettingsPositions.toggleOnX - SettingsPositions.toggleOffX) / 2, y: SettingsPositions.soundToggleY)
-        $0.zPosition = 3
-        $0.color = UIColor.clear
-        $0.size = CGSize(width: 45, height: 25)
-    }
-    
-    lazy var hapticsToggle = SKSpriteNode(texture: SKTexture(imageNamed: "toggle").then { $0.filteringMode = .nearest }).then {
-        $0.position = CGPoint(x: SettingsPositions.toggleOnX, y: SettingsPositions.hapticsToggleY)
-        $0.zPosition = 2
-    }
-    
-    lazy var hapticsButton = SKSpriteNode().then {
-        $0.name = "toggleHaptics"
-        $0.position = CGPoint(x: SettingsPositions.toggleOffX + (SettingsPositions.toggleOnX - SettingsPositions.toggleOffX) / 2, y: SettingsPositions.hapticsToggleY)
-        $0.zPosition = 3
-        $0.color = UIColor.clear
-        $0.size = CGSize(width: 45, height: 25)
-    }
-    
-    lazy var darkModeToggle = SKSpriteNode(texture: SKTexture(imageNamed: "toggle").then { $0.filteringMode = .nearest }).then {
-        $0.position = CGPoint(x: SettingsPositions.toggleOnX, y: SettingsPositions.darkModeToggleY)
-        $0.zPosition = 2
-    }
-    
-    lazy var darkModeButton = SKSpriteNode().then {
-        $0.name = "toggleDarkMode"
-        $0.position = CGPoint(x: SettingsPositions.toggleOffX + (SettingsPositions.toggleOnX - SettingsPositions.toggleOffX) / 2, y: SettingsPositions.darkModeToggleY)
-        $0.zPosition = 3
-        $0.color = UIColor.clear
-        $0.size = CGSize(width: 45, height: 25)
-    }
-    
-    lazy var logsToggle = SKSpriteNode(texture: SKTexture(imageNamed: "toggle").then { $0.filteringMode = .nearest }).then {
-        $0.position = CGPoint(x: SettingsPositions.toggleOnX, y: SettingsPositions.logsToggleY)
-        $0.zPosition = 2
-    }
-    
-    lazy var logsButton = SKSpriteNode().then {
-        $0.name = "toggleLogs"
-        $0.position = CGPoint(x: SettingsPositions.toggleOffX + (SettingsPositions.toggleOnX - SettingsPositions.toggleOffX) / 2, y: SettingsPositions.logsToggleY)
-        $0.zPosition = 3
-        $0.color = UIColor.clear
-        $0.size = CGSize(width: 45, height: 25)
+
+    private func touchBox(_ name: String, y: CGFloat, z: CGFloat) -> SKSpriteNode {
+        SKSpriteNode(color: .clear, size: Layout.rowSize).then {
+            $0.name = name
+            $0.position = CGPoint(x: 0, y: y)
+            $0.zPosition = z
+        }
     }
 }
