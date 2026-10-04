@@ -414,7 +414,11 @@ class FriendsPanel: SKNode {
     }
 
     private func showEveryone(_ entries: [BoardEntry], you: BoardEntry?, rankKnown: Bool, state: FriendsStore.BoardState) {
-        if entries.isEmpty {
+        // Until the server has answered there is nothing to rank against:
+        // the board says what it is waiting for instead of a list of one.
+        let waiting = state != .ok && entries.allSatisfy(\.isMe)
+
+        if entries.isEmpty || waiting {
             let text: String
             switch state {
             case .loading: text = "LOADING"
@@ -429,6 +433,10 @@ class FriendsPanel: SKNode {
                 }
             }
             rowsNode.addChild(PanelArt.label(text, size: 10, x: 0, y: rowCenterY(4)))
+        }
+
+        guard !waiting else {
+            return
         }
 
         for (index, entry) in entries.enumerated() {
@@ -448,7 +456,8 @@ class FriendsPanel: SKNode {
 
         rowsNode.addChild(PanelArt.label(rank, size: 8, x: Layout.rankX, y: y))
         rowsNode.addChild(PanelArt.label(entry.name, size: 10, x: Layout.nameX, y: y, align: .left))
-        rowsNode.addChild(PanelArt.score("\(entry.value)", x: Layout.bestX, y: y))
+        // A little left of the BEST column: three digits must clear the edge.
+        rowsNode.addChild(PanelArt.score("\(entry.value)", x: Layout.bestX - 4, y: y))
     }
 
     // MARK: Building

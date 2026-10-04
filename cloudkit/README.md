@@ -14,3 +14,13 @@ Permissions: anyone can read, a signed-in iCloud user can create, only the
 creator can change or delete a record. Do not create a CloudKit web API
 token for this container: without one, only builds signed by the team can
 write.
+
+## Waiting for the 5.3 deploy
+
+5.3 adds fields that are **not in Production yet** (and so not in
+`schema.ckdb`): `weekKey`, `monthKey` (STRING, queryable) and `weekBest`,
+`monthBest` (INT64, queryable + sortable), for the WEEK and MONTH boards.
+They must be deployed to Production before any 5.3 build talks to it
+(TestFlight builds do): a save that carries a field Production lacks fails
+whole. After the deploy, replace `schema.ckdb` with the Console's text and
+fold this section into the one above.
