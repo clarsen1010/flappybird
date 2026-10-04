@@ -34,8 +34,6 @@ by Christian Larsen
 
 Original game © 2019 - \(Calendar.current.component(.year, from: Date()))
 Brandon Plank, ThatcherDev
-
-See license for details.
 """
         DispatchQueue.global(qos: .background).async {
             sleep(1)
