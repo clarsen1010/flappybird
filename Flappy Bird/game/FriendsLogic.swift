@@ -19,6 +19,35 @@ struct PlayerRow: Codable, Equatable {
     var dayBest: Int
     var dayKey: String
     var lastPlayed: Date?
+    /// Best score in the week and the month of `dayKey` (see
+    /// FriendsLogic.weekKey). Optional: records and stored lists from
+    /// before 5.3 do not have them.
+    var weekKey: String?
+    var weekBest: Int?
+    var monthKey: String?
+    var monthBest: Int?
+}
+
+/// The boards on the EVERYONE list.
+enum BoardScope: String, CaseIterable {
+    case today, week, month, all
+
+    var title: String {
+        switch self {
+        case .today: return "TODAY"
+        case .week: return "WEEK"
+        case .month: return "MONTH"
+        case .all: return "ALL TIME"
+        }
+    }
+}
+
+/// One line of a board.
+struct BoardEntry: Equatable {
+    var rank: Int
+    var name: String
+    var value: Int
+    var isMe: Bool
 }
 
 enum NameProblem: Equatable {
@@ -98,10 +127,125 @@ enum FriendsLogic {
         } else if server.dayKey == local.dayKey {
             row.dayBest = max(server.dayBest, local.dayBest)
         }
+        // Week and month follow the day's rule: the later period wins,
+        // the same period keeps the higher best.
+        let serverWeek = server.weekKey ?? "", localWeek = local.weekKey ?? ""
+        if serverWeek > localWeek {
+            row.weekKey = server.weekKey
+            row.weekBest = server.weekBest
+        } else if serverWeek == localWeek, !localWeek.isEmpty {
+            row.weekBest = max(server.weekBest ?? 0, local.weekBest ?? 0)
+        }
+        let serverMonth = server.monthKey ?? "", localMonth = local.monthKey ?? ""
+        if serverMonth > localMonth {
+            row.monthKey = server.monthKey
+            row.monthBest = server.monthBest
+        } else if serverMonth == localMonth, !localMonth.isEmpty {
+            row.monthBest = max(server.monthBest ?? 0, local.monthBest ?? 0)
+        }
         if let theirs = server.lastPlayed, theirs > (local.lastPlayed ?? .distantPast) {
             row.lastPlayed = theirs
         }
         return row
+    }
+
+    // MARK: Weeks and months
+
+    // Both come from the day key ("2026-10-03", the player's own local
+    // day) by rules that do not depend on the phone's region or calendar
+    // settings, so every phone gives the same day the same week.
+
+    /// The Monday of that day's week, as a day key. Empty for a bad key.
+    static func weekKey(dayKey: String) -> String {
+        let parts = dayKey.split(separator: "-").compactMap { Int($0) }
+        guard dayKey.count == 10, parts.count == 3 else {
+            return ""
+        }
+
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "UTC") ?? .current
+        guard let day = calendar.date(from: DateComponents(year: parts[0], month: parts[1], day: parts[2])) else {
+            return ""
+        }
+
+        // Weekday 1 is Sunday; Monday starts the week.
+        let sinceMonday = (calendar.component(.weekday, from: day) + 5) % 7
+        guard let monday = calendar.date(byAdding: .day, value: -sinceMonday, to: day) else {
+            return ""
+        }
+        let date = calendar.dateComponents([.year, .month, .day], from: monday)
+        return String(format: "%04d-%02d-%02d", date.year ?? 0, date.month ?? 0, date.day ?? 0)
+    }
+
+    /// "2026-10". Empty for a bad key.
+    static func monthKey(dayKey: String) -> String {
+        dayKey.count == 10 ? String(dayKey.prefix(7)) : ""
+    }
+
+    /// The best score in the week and in the month of `anchorDayKey`, from
+    /// each day's best.
+    static func periodBests(days: [String: Int], anchorDayKey: String) -> (weekKey: String, weekBest: Int, monthKey: String, monthBest: Int) {
+        let week = weekKey(dayKey: anchorDayKey)
+        let month = monthKey(dayKey: anchorDayKey)
+        var weekBest = 0, monthBest = 0
+
+        for (day, best) in days {
+            if !week.isEmpty, weekKey(dayKey: day) == week {
+                weekBest = max(weekBest, best)
+            }
+            if !month.isEmpty, monthKey(dayKey: day) == month {
+                monthBest = max(monthBest, best)
+            }
+        }
+
+        return (week, weekBest, month, monthBest)
+    }
+
+    // MARK: Boards
+
+    /// A player's score on a board, 0 when they are not on it. `key` is
+    /// the viewer's current day, week or month key (unused for all time).
+    static func boardValue(_ row: PlayerRow, scope: BoardScope, key: String) -> Int {
+        switch scope {
+        case .today: return row.dayKey == key ? row.dayBest : 0
+        case .week: return row.weekKey == key ? row.weekBest ?? 0 : 0
+        case .month: return row.monthKey == key ? row.monthBest ?? 0 : 0
+        case .all: return row.best
+        }
+    }
+
+    /// A board as shown: the first `shown` players, and this player's own
+    /// line when they have a score but are further down. `rows` is what
+    /// the server sent; `me` is this player's score from the phone's own
+    /// numbers (the server's copy can be a round behind), nil when the
+    /// player is not on the server at all. `youRank` is nil when the rank
+    /// is past the end of what was fetched.
+    static func board(
+        rows: [PlayerRow],
+        scope: BoardScope,
+        key: String,
+        me: (id: String, name: String, value: Int)?,
+        shown: Int,
+        fetchedAll: Bool
+    ) -> (top: [BoardEntry], you: BoardEntry?, youRankKnown: Bool) {
+        var lines = rows
+            .filter { $0.id != me?.id }
+            .map { (name: $0.name, value: boardValue($0, scope: scope, key: key), isMe: false) }
+            .filter { $0.value > 0 }
+
+        if let me, me.value > 0 {
+            lines.append((name: me.name, value: me.value, isMe: true))
+        }
+
+        lines.sort { $0.value != $1.value ? $0.value > $1.value : $0.name < $1.name }
+
+        let entries = lines.enumerated().map { BoardEntry(rank: $0 + 1, name: $1.name, value: $1.value, isMe: $1.isMe) }
+        let mine = entries.first { $0.isMe }
+        let you = mine.flatMap { $0.rank > shown ? $0 : nil }
+
+        // Last of a list that was cut off: there may be players between.
+        let known = fetchedAll || (mine?.rank ?? 0) < entries.count
+        return (Array(entries.prefix(shown)), you, known)
     }
 
     /// "NOW", "5M AGO", "2H AGO", "3D AGO"; empty when never played.
