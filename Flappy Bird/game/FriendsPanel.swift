@@ -398,7 +398,12 @@ class FriendsPanel: SKNode {
                 let todayBest = FriendsLogic.todayBest(row, todayKey: today)
                 rowsNode.addChild(PanelArt.label(todayBest.map { "\($0)" } ?? "-", size: 10, x: Layout.todayX, y: y))
             }
-            rowsNode.addChild(PanelArt.score("\(row.best(viewMode))", x: Layout.bestX, y: y))
+            if viewMode != .normal, row.best(viewMode) == 0 {
+                // No score in this mode yet.
+                rowsNode.addChild(PanelArt.label("-", size: 10, x: Layout.bestX, y: y))
+            } else {
+                rowsNode.addChild(PanelArt.score("\(row.best(viewMode))", x: Layout.bestX, y: y))
+            }
         }
 
         // Only your own row: say how to get company. The hint is a button
