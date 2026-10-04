@@ -1795,7 +1795,8 @@ final class GameScene: SKScene {
             secondScaleDuration: 0.1
         )
 
-        unlockButtons()
+        // As for Friends: the switches appear under the button.
+        unlockButtons(after: 0.4)
     }
 
     // MARK: Game Mode
@@ -1958,16 +1959,20 @@ final class GameScene: SKScene {
 
     /// TODAY / WEEK / MONTH / ALL TIME on the EVERYONE list.
     private func handleScopeTap(_ name: String) {
-        guard !Self.hitButton, friendsNode.select(scope: name) else {
+        guard !Self.hitButton else {
             return
         }
 
-        playSound(swooshSound)
+        if friendsNode.select(scope: name) {
+            playSound(swooshSound)
 
-        if haptics {
-            impactFeedback.impactOccurred()
+            if haptics {
+                impactFeedback.impactOccurred()
+            }
         }
 
+        // Also for the board already showing: a tap fetches it again (it
+        // may be waiting since midnight, or since a failed try).
         loadFriendsBoard()
     }
 
@@ -2245,7 +2250,9 @@ final class GameScene: SKScene {
             secondScaleDuration: 0.1
         )
 
-        unlockButtons()
+        // Longer than usual: the panel's rows appear under the button
+        // just pressed, and a second tap would land on one.
+        unlockButtons(after: 0.4)
         refreshFriends()
     }
 

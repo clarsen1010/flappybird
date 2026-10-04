@@ -361,7 +361,6 @@ enum FriendsStore {
             return
         }
 
-        let hadCache = defaults.data(forKey: cacheKey) != nil
         let cached = loadCache()
         if status == .offline || (cached.friends.isEmpty && cached.everyone.isEmpty) {
             status = .loading
@@ -381,6 +380,11 @@ enum FriendsStore {
             case .failure(let error):
                 return finishRefresh(failed: error)
             }
+
+            // Who was already listed as having added this player, if this
+            // phone has a list at all. Read after adoptID: another account's
+            // list is gone by now.
+            let listedBefore = defaults.data(forKey: cacheKey) != nil ? loadCache().addedMe : nil
 
             // Own record first, so it is never the one cut off by the
             // server's limit; no id twice.
@@ -429,7 +433,7 @@ enum FriendsStore {
                         // (an update from 5.2), or else everyone waiting now
                         // (a new phone must not call them all new).
                         if lookFor != nil, seenAdded == nil {
-                            seenAdded = Set((hadCache ? cached.addedMe : added).map(\.id))
+                            seenAdded = Set((listedBefore ?? added).map(\.id))
                         }
 
                         status = signedIn ? .ok : .noAccount
@@ -729,6 +733,9 @@ enum FriendsStore {
         }
 
         CloudSync.merge()
+        // Always sent: another of the player's phones may have added this
+        // friend, so the list last sent from here can look unchanged.
+        defaults.removeObject(forKey: publishedKey)
         publish()
         GameLog.add("friends remove")
     }
