@@ -61,6 +61,8 @@ class FriendsPanel: SKNode {
     // the player is looking at.
     private var list = List.friends
     private var listPage = 0
+    /// The board showing on EVERYONE.
+    private var scope = BoardScope.today
     private let titleNode = SKNode()
     private let rowsNode = SKNode()
 
@@ -114,6 +116,7 @@ class FriendsPanel: SKNode {
         if !keepPage {
             list = .friends
             listPage = 0
+            scope = .today
             clearMessage()
         }
         showPage()
@@ -160,6 +163,28 @@ class FriendsPanel: SKNode {
         showPage()
     }
 
+    /// The board to fetch for what is showing, if it is a board.
+    var boardShowing: BoardScope? {
+        list == .everyone ? scope : nil
+    }
+
+    /// A tap on TODAY / WEEK / MONTH / ALL TIME. False when it was
+    /// already showing.
+    @discardableResult
+    func select(scope name: String) -> Bool {
+        guard let tapped = BoardScope.allCases.first(where: { Self.scopeName($0) == name }), tapped != scope else {
+            return false
+        }
+        scope = tapped
+        listPage = 0
+        showPage()
+        return true
+    }
+
+    private static func scopeName(_ scope: BoardScope) -> String {
+        "scope" + scope.rawValue.capitalized
+    }
+
     /// The arrows: one page back or on within the list showing. False when
     /// there is no such page.
     @discardableResult
@@ -187,12 +212,7 @@ class FriendsPanel: SKNode {
         FriendsLogic.sorted(FriendsStore.addedYouRows()).enumerated().map { (rank: $0 + 1, row: $1, isMe: false) }
     }
 
-    private func everyoneEntries() -> [Entry] {
-        let myID = FriendsStore.myID
-        return FriendsStore.everyoneRows().enumerated().map { (rank: $0 + 1, row: $1, isMe: $1.id == myID) }
-    }
-
-    private func pages(_ entries: [Entry]) -> [[Entry]] {
+    private func pages<T>(_ entries: [T]) -> [[T]] {
         guard !entries.isEmpty else {
             return [[]]
         }
@@ -204,17 +224,20 @@ class FriendsPanel: SKNode {
     private func showPage() {
         let added = addedYouEntries()
 
+        let board = FriendsStore.boardView(scope)
+
         let entries: [Entry]
         switch list {
         case .friends: entries = friendEntries()
-        case .everyone: entries = everyoneEntries()
+        case .everyone: entries = []
         case .addedYou: entries = added
         }
 
         let group = pages(entries)
+        let boardPages = pages(board.top)
         // A redraw after the list shrank stays on its nearest page.
-        listPage = min(listPage, group.count - 1)
-        pageCount = group.count
+        pageCount = list == .everyone ? boardPages.count : group.count
+        listPage = min(listPage, pageCount - 1)
 
         for (arrow, box, name, shown) in [
             (prevArrow, prevTouchBox, "friendsPrev", listPage > 0),
@@ -236,7 +259,11 @@ class FriendsPanel: SKNode {
         addBackRows = []
         friendRowsOnPage = []
 
-        showHeader(list, isEmpty: entries.isEmpty)
+        if list == .everyone {
+            showScopes()
+        } else {
+            showHeader(list, isEmpty: entries.isEmpty)
+        }
 
         if list == .addedYou {
             // Looked at: they no longer count as new.
@@ -245,7 +272,7 @@ class FriendsPanel: SKNode {
 
         switch list {
         case .friends: showFriends(group[listPage])
-        case .everyone: showEveryone(group[listPage])
+        case .everyone: showEveryone(boardPages[listPage], you: board.you, rankKnown: board.youRankKnown, state: board.state)
         case .addedYou: showAddedYou(group[listPage])
         }
     }
@@ -294,6 +321,17 @@ class FriendsPanel: SKNode {
             rowsNode.addChild(PanelArt.label("TODAY", size: 8, x: Layout.todayX, y: y))
         }
         rowsNode.addChild(PanelArt.label("BEST", size: 8, x: Layout.bestX, y: y))
+    }
+
+    /// EVERYONE's header row: which board. The word showing says what the
+    /// numbers on the right are.
+    private func showScopes() {
+        PanelArt.tabs(
+            BoardScope.allCases.map { (title: $0.title, name: Self.scopeName($0), selected: $0 == scope) },
+            y: rowCenterY(1),
+            packed: true,
+            boxHeight: 32
+        ).forEach(rowsNode.addChild)
     }
 
     private func showFriends(_ entries: [Entry]) {
@@ -375,25 +413,42 @@ class FriendsPanel: SKNode {
         }
     }
 
-    private func showEveryone(_ entries: [Entry]) {
-        guard !entries.isEmpty else {
-            if statusText == nil {
-                rowsNode.addChild(PanelArt.label("NO SCORES YET", size: 10, x: 0, y: rowCenterY(3)))
+    private func showEveryone(_ entries: [BoardEntry], you: BoardEntry?, rankKnown: Bool, state: FriendsStore.BoardState) {
+        if entries.isEmpty {
+            let text: String
+            switch state {
+            case .loading: text = "LOADING"
+            case .offline: text = "OFFLINE"
+            case .failed: text = "UNAVAILABLE"
+            case .ok:
+                switch scope {
+                case .today: text = "NO SCORES TODAY"
+                case .week: text = "NO SCORES THIS WEEK"
+                case .month: text = "NO SCORES THIS MONTH"
+                case .all: text = "NO SCORES YET"
+                }
             }
-            return
+            rowsNode.addChild(PanelArt.label(text, size: 10, x: 0, y: rowCenterY(4)))
         }
 
         for (index, entry) in entries.enumerated() {
-            let y = rowCenterY(index + 2)
-
-            if entry.isMe {
-                addOwnRowBand(y: y)
-            }
-
-            rowsNode.addChild(PanelArt.label("\(entry.rank)", size: 8, x: Layout.rankX, y: y))
-            rowsNode.addChild(PanelArt.label(entry.row.name, size: 10, x: Layout.nameX, y: y, align: .left))
-            rowsNode.addChild(PanelArt.score("\(entry.row.best)", x: Layout.bestX, y: y))
+            showBoardLine(entry, rank: "\(entry.rank)", y: rowCenterY(index + 2))
         }
+
+        // Further down than the list goes: your own line, under it.
+        if let you {
+            showBoardLine(you, rank: rankKnown ? "\(you.rank)" : "99+", y: rowCenterY(7))
+        }
+    }
+
+    private func showBoardLine(_ entry: BoardEntry, rank: String, y: CGFloat) {
+        if entry.isMe {
+            addOwnRowBand(y: y)
+        }
+
+        rowsNode.addChild(PanelArt.label(rank, size: 8, x: Layout.rankX, y: y))
+        rowsNode.addChild(PanelArt.label(entry.name, size: 10, x: Layout.nameX, y: y, align: .left))
+        rowsNode.addChild(PanelArt.score("\(entry.value)", x: Layout.bestX, y: y))
     }
 
     // MARK: Building

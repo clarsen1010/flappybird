@@ -40,8 +40,10 @@ protocol FriendsCloud {
     func fetch(ids: [String], _ done: @escaping (Result<[PlayerRow], FriendsError>) -> Void)
     /// The player with exactly this name, if any.
     func find(name: String, _ done: @escaping (Result<PlayerRow?, FriendsError>) -> Void)
-    /// The highest all-time bests, best first.
-    func top(_ count: Int, _ done: @escaping (Result<[PlayerRow], FriendsError>) -> Void)
+    /// One board of the EVERYONE list, best first, at most `limit` players:
+    /// the players whose day, week or month is `key` (their score that
+    /// period), or for all time the highest bests.
+    func board(_ scope: BoardScope, key: String, limit: Int, _ done: @escaping (Result<[PlayerRow], FriendsError>) -> Void)
     /// The players whose friends list holds `id`.
     func addedMe(id: String, _ done: @escaping (Result<[PlayerRow], FriendsError>) -> Void)
     /// Writes `row` and the friends list to the record `row.id`. Publishing scores
@@ -62,7 +64,10 @@ enum FriendsStore {
     static let friendsKey = "friends"
     /// Shared with CloudSync too: JSON of FriendsLogic.Marks.
     static let marksKey = "friendsMarks"
+    /// Shown on a board; more are fetched so a player further down can be
+    /// told their place.
     static let everyoneCount = 10
+    static let boardFetchLimit = 100
 
     private static let nameKey = "friendsName"
     private static let idKey = "friendsMyID"
@@ -79,6 +84,22 @@ enum FriendsStore {
     enum NameResult: Equatable {
         case ok, invalid(NameProblem), taken, noAccount, offline, failed
     }
+
+    enum BoardState {
+        case loading, ok, offline, failed
+    }
+
+    /// A board as last fetched. `key` is the day, week or month it was
+    /// fetched for: last week's board is never shown as this week's.
+    private struct Board {
+        var key: String
+        var rows: [PlayerRow]
+        var state: BoardState
+    }
+
+    /// Today, week and month live only as long as the app runs; all time
+    /// is also kept in the cache.
+    private static var boards: [BoardScope: Board] = [:]
 
     enum AddResult: Equatable {
         case added, invalid, notFound, isYou, already, offline, failed
@@ -145,13 +166,21 @@ enum FriendsStore {
         let lastRound = defaults.object(forKey: lastRoundKey) as? Date
         let dayKey = lastRound.map(GameStats.dayFormatter.string(from:)) ?? ""
 
+        let days = GameStats.loadDays().mapValues(\.best)
+        // The week and the month of the last round, like the day.
+        let period = FriendsLogic.periodBests(days: days, anchorDayKey: dayKey)
+
         return PlayerRow(
             id: myID ?? "",
             name: myName ?? "",
             best: ResultBoard.bestScore(),
-            dayBest: GameStats.loadDays()[dayKey]?.best ?? 0,
+            dayBest: days[dayKey] ?? 0,
             dayKey: dayKey,
-            lastPlayed: lastRound
+            lastPlayed: lastRound,
+            weekKey: period.weekKey.isEmpty ? nil : period.weekKey,
+            weekBest: period.weekKey.isEmpty ? nil : period.weekBest,
+            monthKey: period.monthKey.isEmpty ? nil : period.monthKey,
+            monthBest: period.monthKey.isEmpty ? nil : period.monthBest
         )
     }
 
@@ -200,9 +229,90 @@ enum FriendsStore {
         }
     }
 
-    /// The top of all time, from the last fetch.
-    static func everyoneRows() -> [PlayerRow] {
-        loadCache().everyone
+    // MARK: Boards
+
+    /// The viewer's current day, week or month key; empty for all time.
+    static func boardKey(_ scope: BoardScope, now: Date = Date()) -> String {
+        let today = GameStats.dayFormatter.string(from: now)
+
+        switch scope {
+        case .today: return today
+        case .week: return FriendsLogic.weekKey(dayKey: today)
+        case .month: return FriendsLogic.monthKey(dayKey: today)
+        case .all: return ""
+        }
+    }
+
+    /// This player's score on a board right now, from the phone's numbers.
+    private static func myBoardValue(_ scope: BoardScope, now: Date) -> Int {
+        let days = GameStats.loadDays().mapValues(\.best)
+        let today = GameStats.dayFormatter.string(from: now)
+
+        switch scope {
+        case .today: return days[today] ?? 0
+        case .week: return FriendsLogic.periodBests(days: days, anchorDayKey: today).weekBest
+        case .month: return FriendsLogic.periodBests(days: days, anchorDayKey: today).monthBest
+        case .all: return ResultBoard.bestScore()
+        }
+    }
+
+    /// A board as the panel draws it, from the last fetch.
+    static func boardView(_ scope: BoardScope, now: Date = Date()) -> (top: [BoardEntry], you: BoardEntry?, youRankKnown: Bool, state: BoardState) {
+        let key = boardKey(scope, now: now)
+        let fetched = boards[scope].flatMap { $0.key == key ? $0 : nil }
+        let rows = fetched?.rows ?? (scope == .all ? loadCache().everyone : [])
+
+        // Only a player with a name is on the server at all.
+        var me: (id: String, name: String, value: Int)?
+        if let id = myID, let name = myName {
+            me = (id, name, myBoardValue(scope, now: now))
+        }
+
+        let board = FriendsLogic.board(
+            rows: rows,
+            scope: scope,
+            key: key,
+            me: me,
+            shown: everyoneCount,
+            fetchedAll: rows.count < boardFetchLimit
+        )
+        return (board.top, board.you, board.youRankKnown, fetched?.state ?? .loading)
+    }
+
+    /// Fetches one board. A board that fails says so on its own: the
+    /// friends lists and the other boards are untouched. Does nothing,
+    /// and never calls back, while that board is already being fetched.
+    static func loadBoard(_ scope: BoardScope, now: Date = Date(), _ done: @escaping () -> Void) {
+        let key = boardKey(scope, now: now)
+
+        if let board = boards[scope], board.key == key, board.state == .loading {
+            return
+        }
+
+        let known = boards[scope].flatMap { $0.key == key ? $0.rows : nil } ?? (scope == .all ? loadCache().everyone : [])
+        boards[scope] = Board(key: key, rows: known, state: .loading)
+
+        cloud.board(scope, key: key, limit: boardFetchLimit) { result in
+            // Another account, or a new day, since this was asked.
+            guard boards[scope]?.key == key else {
+                return done()
+            }
+
+            switch result {
+            case .success(let rows):
+                boards[scope] = Board(key: key, rows: rows, state: .ok)
+                if scope == .all {
+                    var cache = loadCache()
+                    cache.everyone = rows
+                    saveCache(cache)
+                }
+            case .failure(let error):
+                boards[scope]?.state = error == .offline ? .offline : .failed
+                GameLog.add("board \(scope.rawValue) failed: \(error)")
+            }
+
+            done()
+        }
     }
 
     /// The first time the lists load fine and the player has no name yet,
@@ -217,8 +327,9 @@ enum FriendsStore {
 
     // MARK: Fetching
 
-    /// Fetches this player's record, the friends' records and the top list.
-    /// Calls made while a fetch is running join it.
+    /// Fetches this player's record, the friends' records and who added
+    /// this player. Calls made while a fetch is running join it. The
+    /// EVERYONE boards are fetched on their own (loadBoard).
     static func refresh(_ done: @escaping () -> Void) {
         refreshWaiters.append(done)
         guard refreshWaiters.count == 1 else {
@@ -280,20 +391,14 @@ enum FriendsStore {
                         return
                     }
 
-                    cloud.top(everyoneCount) { result in
-                        guard case .success(let top) = result else {
-                            if case .failure(let error) = result { return finishRefresh(failed: error) }
-                            return
-                        }
-
+                    do {
                         // Friends added while this fetch was out were not
                         // asked for; keep their rows.
-                        let addedMeanwhile = loadCache().friends.filter { !wanted.contains($0.id) }
-                        saveCache(Cache(
-                            friends: rows.filter { $0.id != myID } + addedMeanwhile,
-                            addedMe: added,
-                            everyone: top
-                        ))
+                        var cache = loadCache()
+                        let addedMeanwhile = cache.friends.filter { !wanted.contains($0.id) }
+                        cache.friends = rows.filter { $0.id != myID } + addedMeanwhile
+                        cache.addedMe = added
+                        saveCache(cache)
                         // The first answer about who added this player sets
                         // what counts as already seen: the list last shown
                         // (an update from 5.2), or else everyone waiting now
@@ -303,7 +408,7 @@ enum FriendsStore {
                         }
 
                         status = signedIn ? .ok : .noAccount
-                        GameLog.add("friends refresh ok: \(rows.count) of \(wanted.count) records, added me \(added.count), top \(top.count)")
+                        GameLog.add("friends refresh ok: \(rows.count) of \(wanted.count) records, added me \(added.count)")
                         finishRefresh()
                         publish()
                     }
@@ -348,6 +453,7 @@ enum FriendsStore {
             for key in [cacheKey, friendsKey, marksKey, seenAddedKey] {
                 defaults.removeObject(forKey: key)
             }
+            boards = [:]
         }
 
         myID = id
@@ -500,6 +606,9 @@ enum FriendsStore {
                 var cache = loadCache()
                 cache.everyone.removeAll { $0.id == id }
                 saveCache(cache)
+                for scope in BoardScope.allCases {
+                    boards[scope]?.rows.removeAll { $0.id == id }
+                }
                 finish(nil)
             }
         }

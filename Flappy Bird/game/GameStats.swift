@@ -83,7 +83,11 @@ enum GameStats {
     }
 
     static func summary(_ period: StatsPeriod, now: Date = Date()) -> PeriodStats {
-        let calendar = Calendar.current
+        // Weeks run Monday to Sunday for everyone, like the WEEK board,
+        // whatever the phone's region says.
+        var calendar = Calendar.current
+        calendar.firstWeekday = 2
+        calendar.minimumDaysInFirstWeek = 4
         let interval: DateInterval?
 
         switch period {

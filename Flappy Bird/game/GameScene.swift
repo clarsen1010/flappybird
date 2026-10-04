@@ -1223,6 +1223,9 @@ final class GameScene: SKScene {
         case let name? where name.hasPrefix("tab"):
             handleTabTap(name)
 
+        case let name? where name.hasPrefix("scope"):
+            handleScopeTap(name)
+
         case "friends":
             handleFriendsTap()
 
@@ -1305,7 +1308,7 @@ final class GameScene: SKScene {
         switch nodeName {
         case "play", "pause", "settings", "birdPicker", "bestRuns",
              "panelBack", "tabRuns", "tabStats", "tabGoals", "friends",
-             "tabFriends", "tabEveryone", "tabAdded",
+             "tabFriends", "tabEveryone", "tabAdded", "scopeToday", "scopeWeek", "scopeMonth", "scopeAll",
              "friendsPrev", "friendsNext", "friendsAdd", "friendsMe", "friendsShare", "editName",
              "friendsRow0", "friendsRow1", "friendsRow2", "friendsRow3", "friendsRow4",
              "friendsAddBack0", "friendsAddBack1", "friendsAddBack2", "friendsAddBack3", "friendsAddBack4",
@@ -1743,7 +1746,40 @@ final class GameScene: SKScene {
             bestRunsNode.select(tab: name)
         } else if friendsNode.parent != nil {
             friendsNode.select(tab: name)
+            loadFriendsBoard()
         }
+    }
+
+    /// TODAY / WEEK / MONTH / ALL TIME on the EVERYONE list.
+    private func handleScopeTap(_ name: String) {
+        guard !Self.hitButton, friendsNode.select(scope: name) else {
+            return
+        }
+
+        playSound(swooshSound)
+
+        if haptics {
+            impactFeedback.impactOccurred()
+        }
+
+        loadFriendsBoard()
+    }
+
+    /// Fetches the board on screen, if EVERYONE is showing; the panel
+    /// shows what it has (or LOADING) until it arrives.
+    private func loadFriendsBoard() {
+        guard let scope = friendsNode.boardShowing else {
+            return
+        }
+
+        FriendsStore.loadBoard(scope) { [weak self] in
+            guard let self, self.friendsNode.parent != nil else {
+                return
+            }
+            self.friendsNode.reload(keepPage: true)
+        }
+
+        friendsNode.reload(keepPage: true)
     }
 
     private func hideSettings() {
@@ -2029,6 +2065,8 @@ final class GameScene: SKScene {
 
         // Shows LOADING while the first fetch runs.
         friendsNode.reload(keepPage: true)
+        // Back in the game with EVERYONE open: its board is fetched again.
+        loadFriendsBoard()
     }
 
     /// The arrows under the panel: the pages of the list showing.

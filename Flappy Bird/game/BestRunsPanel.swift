@@ -343,13 +343,30 @@ enum PanelArt {
     static let tabColor = PanelButton.textColor
     static let panelColor = UIColor(red: 221 / 255, green: 217 / 255, blue: 156 / 255, alpha: 1)
 
-    /// A row of tab words in equal slots across the panel. The one showing
-    /// sits on a dark band; each slot is a touch box with the tab's name.
-    static func tabs(_ tabs: [(title: String, name: String, selected: Bool)], y: CGFloat, size: CGFloat = 8) -> [SKNode] {
-        let slot = 216 / CGFloat(tabs.count)
+    /// A row of tab words across the panel. The one showing sits on a
+    /// dark band; each word is a touch box with the tab's name. Words sit
+    /// in equal slots, or `packed` side by side when they are too uneven
+    /// for that. `boxHeight` reaches up into the top border on row 0.
+    static func tabs(
+        _ tabs: [(title: String, name: String, selected: Bool)],
+        y: CGFloat,
+        size: CGFloat = 8,
+        packed: Bool = false,
+        boxHeight: CGFloat = 34
+    ) -> [SKNode] {
+        let gap: CGFloat = 10
+        let widths = tabs.map { CGFloat($0.title.count) * size }
+        let total = widths.reduce(0, +) + gap * CGFloat(tabs.count - 1)
+        var left = -total / 2
 
         return tabs.enumerated().flatMap { index, tab -> [SKNode] in
-            let x = (CGFloat(index) - CGFloat(tabs.count - 1) / 2) * slot
+            var slot = 216 / CGFloat(tabs.count)
+            var x = (CGFloat(index) - CGFloat(tabs.count - 1) / 2) * slot
+            if packed {
+                slot = widths[index] + gap
+                x = left + widths[index] / 2
+                left += slot
+            }
             var nodes: [SKNode] = []
 
             if tab.selected {
@@ -369,10 +386,9 @@ enum PanelArt {
                 nodes.append(label(tab.title, size: size, x: x, y: y))
             }
 
-            // Reaches up into the top border, and stops at the next row.
-            nodes.append(SKSpriteNode(color: .clear, size: CGSize(width: slot, height: 34)).then {
+            nodes.append(SKSpriteNode(color: .clear, size: CGSize(width: slot, height: boxHeight)).then {
                 $0.name = tab.name
-                $0.position = CGPoint(x: x, y: y + 1)
+                $0.position = CGPoint(x: x, y: y + (boxHeight - 32) / 2)
                 $0.zPosition = 3
             })
 
