@@ -1,30 +1,16 @@
-# FlappyBird
+# Blappy Fird: Night Edition
 
-This is an extremely close clone to the original FlappyBird by Dong Nguyen.
+Tap to flap. Dodge the pipes.
 
-## Demo
-<img src="demo/demo.gif" width="200">
+- **Three hard modes:** HARD, INSANE and IMPOSSIBLE, each with its own look and its own best score (extra lives in HARD and INSANE).
+- **Friends:** pick a name, add friends by name, and compare today, this week, this month and all time.
+- **Night look,** a dark icon, and your runs and stats saved to iCloud.
 
-## Compatibility
-FlappyBird is compatible with the iPhone 6s and above on iOS 13 and later.
-Compatible with watchOS 6.0 and above.
+iPhone, iOS 16 and later.
 
-## Installation
-The '.ipa' and '.dmg' for FlappyBird can be found on the [release page](https://github.com/crypticplank/flappybird/releases).
+- Privacy: [PRIVACY.md](PRIVACY.md)
+- Support: [SUPPORT.md](SUPPORT.md)
 
-## License
-- [MIT](https://choosealicense.com/licenses/mit/)
-- Copyright (c) 2019 - 2022 Brandon Plank, ThatcherDev (The FlappyBird Revision Team)
-
-## Notice
-We do not own most of the Flappy Bird assets, or the Flappy Bird name, some of the assets
-were extracted straight from the game. They are the work and copyright of original 
-creator Dong Nguyen and .GEARS games (http://www.dotgears.com/).
-
-I took this Tweet (https://twitter.com/dongatory/status/431060041009856512 /
-http://i.imgur.com/AcyWyqf.png) by Dong Nguyen, the creator of the game, as an open 
-invitation to reuse the game concept and assets in an open source project. 
-There is no intention to steal the game, or claim the Flappy Bird name as my own.
-
-If the copyright holder would like for the assets to be removed, please open an 
-issue to start the conversation.
+## Credits and license
+Built on the open-source FlappyBird project by Brandon Plank and ThatcherDev (MIT, see [LICENSE](LICENSE)).
+Some original game art is by .GEARS (Dong Nguyen). If the rights holder would like it removed, please open an issue.
