@@ -11,6 +11,5 @@ iPhone, iOS 16 and later.
 - Privacy: [PRIVACY.md](PRIVACY.md)
 - Support: [SUPPORT.md](SUPPORT.md)
 
-## Credits and license
-Built on the open-source FlappyBird project by Brandon Plank and ThatcherDev (MIT, see [LICENSE](LICENSE)).
-Some original game art is by .GEARS (Dong Nguyen). If the rights holder would like it removed, please open an issue.
+## License
+MIT, see [LICENSE](LICENSE).
