@@ -67,12 +67,13 @@ enum GameMode: String, CaseIterable {
             )
 
         case .impossible:
-            // Big jumps between gaps, sliding pipes and a shrinking gap
-            // from the first pipe. Normal speed until 30, a slow creep to
-            // 50, faster after; capped low enough that the jumps stay big.
+            // Big jumps between gaps, and pipes sliding their full width
+            // from the very first one, with a shrinking gap. A touch
+            // faster than normal from the start, a slow creep from 15,
+            // faster from 40; capped low enough that the jumps stay big.
             return Tuning(
-                startSpeed: 1.0, ramps: [(from: 30, gain: 0.02), (from: 50, gain: 0.03)], speedCap: 1.6,
-                slideFrom: 1, slideAmp: 20, slideRamp: 10, slidePeriod: 2.0,
+                startSpeed: 1.08, ramps: [(from: 15, gain: 0.02), (from: 40, gain: 0.03)], speedCap: 1.8,
+                slideFrom: 1, slideAmp: 20, slideRamp: 1, slidePeriod: 2.0,
                 gapShrink: 2, gapFloor: 110,
                 yLow: 0.55, yHigh: 2.2
             )
