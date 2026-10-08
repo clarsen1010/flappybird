@@ -133,11 +133,13 @@ public class ResultBoard: SKSpriteNode {
         SKAction.scale(to: 0.0, duration: 0.3)
     ]))
     
-    /// The mode the round was played in: its own best, and its name on
-    /// the card (nothing for NORMAL). Set before `score`.
+    /// The mode the round was played in: which best the card shows. Set
+    /// before `score`. The mode's name is no longer drawn on the card:
+    /// next to the MODE button (the next round's mode) it read as a
+    /// contradiction. To bring it back, set modeTag.text to mode.title.
     var mode = GameMode.normal {
         didSet {
-            modeTag.text = mode == .normal ? "" : mode.title
+            modeTag.text = ""
             modeTagInside.text = modeTag.text
         }
     }
