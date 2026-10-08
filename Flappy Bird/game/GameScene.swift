@@ -118,8 +118,10 @@ final class GameScene: SKScene {
         static let uiAnimationDuration: TimeInterval = 0.1
         static let toggleAnimationDuration: TimeInterval = 0.12
 
-        static let pauseButtonScale: CGFloat = 2.4
-        static let pauseButtonInset: CGFloat = 45
+        static let pauseButtonScale: CGFloat = 3.0
+        /// The pause and resume buttons' touch area, in points (the
+        /// sprite itself is 48).
+        static let pauseButtonHit: CGFloat = 60
 
         static let gameOverDelay: TimeInterval = 0.8
         static let resultDelay: TimeInterval = 0.2
@@ -967,21 +969,23 @@ final class GameScene: SKScene {
     private func pauseButtonPosition() -> CGPoint {
         guard let view = self.view else {
             return CGPoint(
-                x: 32,
-                y: height - 32
+                x: 36,
+                y: 36
             )
         }
 
         let safeInsets = view.safeAreaInsets
 
-        // Top-left corner of the device's safe area, in SKView coordinates.
-        let topLeftInView = CGPoint(
+        // Bottom-left corner of the device's safe area, in SKView
+        // coordinates: over the ground, in reach of the thumb, clear of the
+        // pipes and the score.
+        let bottomLeftInView = CGPoint(
             x: view.bounds.minX + safeInsets.left,
-            y: view.bounds.minY + safeInsets.top
+            y: view.bounds.maxY - safeInsets.bottom
         )
 
-        // Convert the actual visible top-left into scene coordinates.
-        let topLeftInScene = convertPoint(fromView: topLeftInView)
+        // Convert the actual visible bottom-left into scene coordinates.
+        let bottomLeftInScene = convertPoint(fromView: bottomLeftInView)
 
         // The button's position is its center.
         let buttonHalfWidth =
@@ -995,9 +999,19 @@ final class GameScene: SKScene {
         let margin: CGFloat = 12
 
         return CGPoint(
-            x: topLeftInScene.x + buttonHalfWidth + margin,
-            y: topLeftInScene.y - buttonHalfHeight - margin
+            x: bottomLeftInScene.x + buttonHalfWidth + margin,
+            y: bottomLeftInScene.y + buttonHalfHeight + margin
         )
+    }
+
+    /// A clear box carrying the button's name, so a tap a little off the
+    /// sprite still lands. Sized in the sprite's unscaled units.
+    private static func pauseHitBox(name: String) -> SKSpriteNode {
+        let side = Constants.pauseButtonHit / Constants.pauseButtonScale
+        return SKSpriteNode(color: .clear, size: CGSize(width: side, height: side)).then {
+            $0.name = name
+            $0.zPosition = 1
+        }
     }
 
     private func makePauseButton() -> SKSpriteNode {
@@ -1010,6 +1024,7 @@ final class GameScene: SKScene {
             $0.setScale(Constants.pauseButtonScale)
             $0.position = pauseButtonPosition()
             $0.zPosition = 100
+            $0.addChild(Self.pauseHitBox(name: "pause"))
         }
     }
 
@@ -1023,6 +1038,7 @@ final class GameScene: SKScene {
             $0.setScale(Constants.pauseButtonScale)
             $0.position = pauseButtonPosition()
             $0.zPosition = 100
+            $0.addChild(Self.pauseHitBox(name: "resume"))
         }
     }
 
