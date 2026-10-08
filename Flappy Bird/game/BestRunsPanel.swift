@@ -89,10 +89,10 @@ class BestRunsPanel: SKNode {
 
         var title: String {
             switch self {
-            case .runs: return "RUNS"
+            case .runs: return "SCORES"
             case .stats: return "STATS"
-            case .goals: return "GOALS"
-            case .hard: return "HARD"
+            case .goals: return "MEDALS"
+            case .hard: return "EXTRAS"
             }
         }
 
@@ -210,9 +210,12 @@ class BestRunsPanel: SKNode {
 
     private func showPage() {
         titleNode.removeAllChildren()
+        // Packed: three six-letter words don't fit equal slots without the
+        // selected box touching its neighbour.
         PanelArt.tabs(
             Page.allCases.map { (title: $0.title, name: $0.tabName, selected: $0 == page) },
-            y: rowCenterY(0)
+            y: rowCenterY(0),
+            packed: true
         ).forEach(titleNode.addChild)
         rowsNode.removeAllChildren()
 
