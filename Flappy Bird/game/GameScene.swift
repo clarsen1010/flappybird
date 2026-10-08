@@ -1899,9 +1899,18 @@ final class GameScene: SKScene {
     /// The two blurb lines, white with a dark edge like the menu captions,
     /// in the button's own units (it is drawn at 1.2): just under its frame,
     /// above the grass. Unnamed, so a tap on them is a tap on the world.
+    /// On a dark plate: on Game Over the dead bird and the headstones lie
+    /// right there, and white letters over them don't read.
     private func showModeBlurb() {
         modeBlurb.removeAllChildren()
         let (first, second) = GameMode.current.blurb
+        guard !first.isEmpty else { return }
+
+        let letters = CGFloat(max(first.count, second.count))
+        modeBlurb.addChild(SKSpriteNode(color: PanelButton.textColor.withAlphaComponent(0.85), size: CGSize(width: letters * 6 + 10, height: 22)).then {
+            $0.position = CGPoint(x: 0, y: -28.5)
+            $0.zPosition = -0.5
+        })
 
         for (line, y) in [(first, CGFloat(-24)), (second, CGFloat(-33))] where !line.isEmpty {
             for (z, (color, offset)) in [(PanelButton.textColor, CGPoint(x: 0, y: -1)), (UIColor.white, .zero)].enumerated() {
