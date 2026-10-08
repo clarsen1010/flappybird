@@ -457,6 +457,14 @@ final class GameScene: SKScene {
         $0.setScale(1.2)
         $0.position = CGPoint(x: width / 2, y: 196)
         $0.zPosition = GameZPosition.result
+        $0.addChild(modeBlurb)
+    }
+
+    /// Under the mode button: what the chosen mode does, in two short
+    /// lines (GameMode.blurb). A child of the button, so it comes, goes
+    /// and scales with it; filled in by showModeName.
+    private lazy var modeBlurb = SKNode().then {
+        $0.zPosition = 1
     }
     private lazy var pauseButton = makePauseButton()
     private lazy var resumeButton = makeResumeButton()
@@ -1885,6 +1893,28 @@ final class GameScene: SKScene {
     private func showModeName() {
         modeButton.text = "MODE: \(GameMode.current.title)"
         settingsNode.modeButton.text = GameMode.current.title
+        showModeBlurb()
+    }
+
+    /// The two blurb lines, white with a dark edge like the menu captions,
+    /// in the button's own units (it is drawn at 1.2): just under its frame,
+    /// above the grass. Unnamed, so a tap on them is a tap on the world.
+    private func showModeBlurb() {
+        modeBlurb.removeAllChildren()
+        let (first, second) = GameMode.current.blurb
+
+        for (line, y) in [(first, CGFloat(-24)), (second, CGFloat(-33))] where !line.isEmpty {
+            for (z, (color, offset)) in [(PanelButton.textColor, CGPoint(x: 0, y: -1)), (UIColor.white, .zero)].enumerated() {
+                modeBlurb.addChild(SKLabelNode(fontNamed: "KongtextRegular").then {
+                    $0.text = line
+                    $0.fontSize = 6
+                    $0.fontColor = color
+                    $0.verticalAlignmentMode = .center
+                    $0.position = CGPoint(x: offset.x, y: y + offset.y)
+                    $0.zPosition = CGFloat(z)
+                })
+            }
+        }
     }
 
     /// The mode button by Play, or the MODE row in Settings: the next

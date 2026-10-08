@@ -31,6 +31,18 @@ enum GameMode: String, CaseIterable {
         rawValue.uppercased()
     }
 
+    /// Two short lines under the MODE button: what the mode does. Kept to
+    /// 30 letters a line so they fit under the button. Nothing for NORMAL.
+    /// Keep them true to `tuning` (lives, slides, the shrinking gap).
+    var blurb: (String, String) {
+        switch self {
+        case .normal: return ("", "")
+        case .hard: return ("GETS FASTER THE FURTHER YOU GO", "STORM SKY. +1 LIFE AT 50")
+        case .insane: return ("HARD, PLUS THE PIPES SLIDE", "UP AND DOWN. +1 LIFE AT 50")
+        case .impossible: return ("STEEP DROPS, SHRINKING GAPS", "MOVING PIPES. NO EXTRA LIVES")
+        }
+    }
+
     /// Added to the storage keys of a mode's own records ("bestScoreHard").
     /// Written out, never derived: stored data must not move if a mode is
     /// renamed. NORMAL keeps the keys it always had.
