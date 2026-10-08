@@ -25,9 +25,10 @@ class LoadingViewController: UIViewController {
     override func viewDidLoad() {
         super.viewDidLoad()
         print("Showing launch screen")
-        // "5.0.3" -> "5.0 Edition": the patch number changes every install, the edition doesn't.
-        let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? ""
-        let edition = version.split(separator: ".").prefix(2).joined(separator: ".")
+        // The edition players see, set by hand. It is not the app's version:
+        // MARKETING_VERSION stays at 5.3 or higher, because App Store Connect
+        // refuses an upload whose version is lower than one it already has.
+        let edition = "2.0"
         infoLabel.text = """
 Blappy Fird \(edition) Edition
 by Christian Larsen
